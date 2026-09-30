@@ -44,6 +44,32 @@ body {
   display: none;
 }
 
+/* 연결돼 있는 동안 늘 보이는 표시. 양쪽 조작 영역을 가리지 않게 아래 가운데에 작게. */
+#connected {
+  position: fixed;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+#connected::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+body.connected #connected {
+  display: flex;
+}
+
 /* 폰을 보지 않고 쓰는 패드라 그리는 건 없다. 처음 한 번 어느 쪽이 무엇인지만 흐리게 알려 준다. */
 #guide {
   position: fixed;
