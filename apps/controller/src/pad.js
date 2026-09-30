@@ -93,11 +93,10 @@ export function createPad(root, { onStick, onGesture }) {
 
   /** @param {PointerEvent} e */
   function moveGesture(e) {
-    if (holding) return; // 홀드가 된 뒤로는 움직여도 획이 아니다(뗄 때까지 홀드).
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     if (Math.abs(dx) < STROKE_STEP_PX && Math.abs(dy) < STROKE_STEP_PX) return;
-    clearTimeout(holdTimer); // 획이 생겼으니 홀드가 아니다.
+    clearTimeout(holdTimer); // 홀드 전에 획이 생기면 홀드가 아니다. 홀드 뒤의 획은 뗄 때 release 앞에 보낸다.
     const horizontal = Math.abs(dx) > Math.abs(dy);
     const dir = horizontal ? (dx > 0 ? '→' : '←') : (dy > 0 ? '↓' : '↑');
     if (strokes[strokes.length - 1] !== dir) {
@@ -125,13 +124,15 @@ export function createPad(root, { onStick, onGesture }) {
     if (gestureId === null) return;
     gestureId = null;
     clearTimeout(holdTimer);
+    const stroke = cancelled ? '' : resolveStrokes();
     if (holding) {
+      // 홀드한 채 그은 획(모았다가 튕기기 등)을 먼저, 그다음 release. 가드로 쓰는 게임은 이 획을 무시하면 된다.
       holding = false;
+      if (stroke) emit(stroke);
       emit('release');
       return;
     }
     if (cancelled) return;
-    const stroke = resolveStrokes();
     if (stroke) {
       lastTap = null;
       emit(stroke);
