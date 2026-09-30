@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@digitus/protocol": "workspace:*",
+    "@digitus/touch": "workspace:*",
     "trystero": "^0.25.4"
   },
   "devDependencies": {

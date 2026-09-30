@@ -23,11 +23,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-#pad {
-  position: fixed;
-  inset: 0;
-}
-
 #status {
   position: fixed;
   inset: 0;

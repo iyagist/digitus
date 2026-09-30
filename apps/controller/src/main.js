@@ -4,7 +4,7 @@
  */
 import { joinRoom } from 'trystero';
 import { ACTION, PROTOCOL_VERSION, parseControllerHash } from '@digitus/protocol';
-import { createPad } from './pad.js';
+import { createTouch } from '@digitus/touch';
 import './style.css';
 
 /**
@@ -14,7 +14,6 @@ import './style.css';
  * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
  */
 
-const padEl = /** @type {HTMLElement} */ (document.getElementById('pad'));
 const statusEl = /** @type {HTMLElement} */ (document.getElementById('status'));
 const fullscreenEl = /** @type {HTMLButtonElement} */ (document.getElementById('fullscreen'));
 
@@ -57,7 +56,7 @@ function connect({ appId, room }) {
 
   /** @type {string | null} */
   let hostId = null;
-  /** @type {ReturnType<typeof createPad> | null} */
+  /** @type {ReturnType<typeof createTouch> | null} */
   let pad = null;
   let seq = 0;
 
@@ -76,13 +75,11 @@ function connect({ appId, room }) {
     // 답례 — 호스트는 이걸 받고 버전이 맞으면 이 폰을 플레이어로 받는다.
     helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
     pad?.destroy();
-    pad = createPad(padEl, {
-      onStick: sendStick,
-      // 제스처는 한 번뿐인 사건이라 모으지 않고 바로 보낸다(스틱보다 먼저 가도 괜찮다).
-      onGesture: (gesture) => {
-        if (hostId) gestureAction.send({ gesture }, { target: hostId });
-      },
-    });
+    pad = createTouch(); // 폰 화면 전체
+    pad.onInput = sendStick;
+    pad.onGesture = (gesture) => {
+      if (hostId) gestureAction.send({ gesture }, { target: hostId });
+    };
     setStatus('');
     document.body.classList.add('connected');
   };
@@ -95,9 +92,4 @@ function connect({ appId, room }) {
     setStatus('게임과 연결이 끊겼어요');
     document.body.classList.remove('connected');
   };
-
-  // 앱 전환·화면 끔에서는 pointerup 이 오지 않아 스틱이 기운 채 남는다.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) pad?.releaseAll();
-  });
 }

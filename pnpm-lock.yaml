@@ -29,6 +29,9 @@ importers:
       '@digitus/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@digitus/touch':
+        specifier: workspace:*
+        version: link:../../packages/touch
       trystero:
         specifier: ^0.25.4
         version: 0.25.4
@@ -69,6 +72,12 @@ importers:
         version: 0.25.4
 
   packages/protocol: {}
+
+  packages/touch:
+    dependencies:
+      '@digitus/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
 packages:
 
