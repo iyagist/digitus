@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Digitus Demo</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; padding: 24px; background: #111318; color: #e8eaf0; font-family: system-ui, sans-serif; }
+      main { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+      #qr { background: #fff; padding: 12px; border-radius: 8px; }
+      #url { display: block; max-width: 320px; margin-top: 8px; word-break: break-all; font-size: 12px; color: #8a90a0; }
+      .player { border: 1px solid #333844; border-radius: 8px; padding: 12px 16px; min-width: 220px; margin-bottom: 12px; }
+      .player pre { margin: 8px 0 0; font-size: 13px; }
+      .dot { position: relative; width: 120px; height: 120px; border-radius: 50%; border: 1px solid #333844; margin-top: 8px; }
+      .dot span { position: absolute; width: 16px; height: 16px; margin: -8px; border-radius: 50%; background: #78aaff; left: 50%; top: 50%; }
+      .hint { color: #8a90a0; font-size: 14px; max-width: 480px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <canvas id="qr"></canvas>
+        <a id="url" target="_blank"></a>
+      </section>
+      <section>
+        <p class="hint">폰 카메라로 QR 코드를 찍으세요. 개발용 인증서라 폰에서 한 번 “안전하지 않음”을 허용해야 해요.</p>
+        <div id="players"></div>
+      </section>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "@digitus/host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@digitus/protocol": "workspace:*",
+    "trystero": "^0.25.4"
+  }
+}

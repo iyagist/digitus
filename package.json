@@ -1,0 +1,20 @@
+{
+  "name": "digitus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter controller --filter demo dev",
+    "build": "pnpm --filter controller build",
+    "typecheck": "tsc --noEmit -p jsconfig.json",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.39.3",
+    "globals": "^17.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

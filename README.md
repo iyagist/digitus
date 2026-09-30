@@ -1,0 +1,84 @@
+# Digitus
+
+폰을 브라우저 게임의 컨트롤러로 쓴다. 게임 화면의 QR 코드를 폰으로 찍으면 컨트롤러 페이지가 열리고,
+WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요 없다.
+
+> *digitus* — 라틴어로 "손가락". *digital* 의 어원.
+
+```
+[게임 (PC 브라우저)] ←── WebRTC 직접 연결 ──→ [컨트롤러 (폰 브라우저)]
+            └──── 처음 서로를 찾을 때만: Trystero (공개 Nostr 릴레이) ────┘
+```
+
+## 구성 (pnpm workspace, 순수 JS ESM + JSDoc)
+
+| 패키지 | 역할 |
+|---|---|
+| `packages/protocol` | 호스트·컨트롤러가 공유하는 약속: 메시지 형식, 배치(Layout), 입력 상태, 주소 |
+| `packages/host` | 게임이 가져다 쓰는 라이브러리. 방을 열고, 배치를 보내고, 입력을 받는다 |
+| `apps/controller` | 폰 컨트롤러 페이지. **모든 게임이 이 페이지 하나를 같이 쓴다** — 무엇을 그릴지는 게임이 보낸 배치로 정한다 |
+| `apps/demo` | 호스트 사용 예. 입력을 화면에 그대로 보여준다 |
+
+## 사용법 (게임 쪽)
+
+```js
+import { createHost } from '@digitus/host';
+
+const host = createHost({
+  appId: 'my-game',                              // 게임마다 고유
+  controllerUrl: 'https://controller.example/',  // 컨트롤러 페이지 주소
+  layout: {
+    orientation: 'landscape',
+    controls: [
+      { type: 'stick', id: 'move', x: 0.22, y: 0.6 },
+      { type: 'button', id: 'a', label: 'A', x: 0.85, y: 0.65 },
+    ],
+  },
+});
+
+showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
+
+// 이벤트로 받거나
+host.onInput = (state, player) => { /* state.sticks.move = [x, y], state.buttons.a = true */ };
+// 게임 루프에서 읽는다
+for (const player of host.players.values()) player.state;
+```
+
+- 스틱 값은 `[-1, 1]`, 화면 좌표계(오른쪽 +x, 아래 +y). 데드존은 게임이 정한다.
+- 입력은 매번 **전체 스냅샷**이다. 하나를 놓쳐도 다음 것으로 복구된다.
+- 배치의 `x`, `y` 는 화면 비율(0~1)의 중심, `r` 은 화면 짧은 변 대비 반지름(기본 스틱 0.3, 버튼 0.12).
+- `host.setLayout(next)` 로 게임 중 배치를 바꿀 수 있다(메뉴 ↔ 플레이 등).
+- 플레이어는 `index`(0부터)로 구분한다. 나간 자리는 다음에 들어온 사람이 채운다.
+
+## 개발
+
+```bash
+pnpm install
+pnpm dev        # 컨트롤러 https://<LAN IP>:5180 + 데모 http://localhost:5181
+pnpm build      # 컨트롤러 페이지 빌드 → apps/controller/dist
+pnpm typecheck
+pnpm lint
+```
+
+1. PC 에서 http://localhost:5181 을 연다.
+2. 폰을 **같은 와이파이**에 두고 QR 을 찍는다.
+3. 개발용 자체 서명 인증서라 폰에서 한 번 "안전하지 않음"을 허용해야 한다.
+
+컨트롤러가 HTTPS 여야 하는 이유: Trystero 가 연결 정보를 `crypto.subtle` 로 암호화하는데, 이건 보안 컨텍스트
+(HTTPS 또는 localhost)에서만 돈다. 배포처(Cloudflare Pages, GitHub Pages 등)는 모두 HTTPS 라 문제없다.
+
+## 알아둘 점
+
+- **인터넷이 필요하다.** 서로를 찾는 단계가 공개 Nostr 릴레이를 거친다. 연결된 뒤 입력은 직접 오간다.
+  공개 릴레이가 불안하면 Trystero 의 다른 방식(MQTT, 자체 WebSocket 릴레이 등)으로 바꿀 수 있다.
+- **방 이름을 아는 사람만 붙는다.** 방 이름(16자 무작위)으로 연결 정보가 암호화되고, 방 이름은 QR 주소의
+  해시(`#`)에만 있어 컨트롤러 페이지 서버로도 가지 않는다.
+- **직접 연결이 막히는 네트워크**(일부 회사·학교 망)에서는 TURN 서버가 필요하다 — `createHost` 의
+  `rtcConfig` 로 넣는다. 컨트롤러 쪽 설정은 아직 없다.
+- 호스트 탭을 닫으면 폰이 바로 안다(`pagehide` 에서 방을 나감).
+
+## 아직 없는 것
+
+- 스팀(Electron)판의 인터넷 없는 LAN 연결 — 연결 방식을 하나 더 두는 식으로 붙일 자리.
+- Gamepad API 흉내(폰 입력을 `navigator.getGamepads()` 로 노출).
+- 컨트롤러 페이지 배포.
