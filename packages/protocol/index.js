@@ -7,7 +7,7 @@
  */
 
 /** 메시지 형식이 바뀌면 올린다. 다르면 서로 무시한다. */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /** Trystero 액션 이름. */
 export const ACTION = Object.freeze({
@@ -24,15 +24,19 @@ export const ACTION = Object.freeze({
  * 끝이 없다 — 끄는 만큼 커진다. 화면 좌표계(오른쪽 +x, 아래 +y), 폰을 세우든 눕히든 폰 화면 기준이다.
  * 직전 대비 변화분이 아니라 스냅샷이라 하나를 놓쳐도 다음 것으로 복구된다. 데드존·최대치는 게임이 정한다.
  *
+ * `dtap` 은 스틱 쪽 더블탭(끌지 않고 5px·짧게 200ms 두 번, 두 탭을 뗀 간격 300ms·거리 60px 안)의 **누적 횟수**다.
+ * 늘었으면 그만큼 더블탭이 났다. 한 번짜리 표시로 두면 스냅샷끼리 덮여 사라질 수 있어 횟수로 둔다.
+ * 한 번 두드림은 아무것도 아니다. 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
+ *
  * @typedef {object} InputState
  * @property {number} dx
  * @property {number} dy
+ * @property {number} dtap
  */
 
 /**
- * 오른쪽 화면 제스처. 문자열 하나다.
- * - `'tap'`: 획 없이 짧게 톡. 더블탭이 아닌지 확인하느라 **300ms 뒤에** 온다
- * - `'dtap'`: 탭을 뗀 뒤 300ms 안에 가까이(60px) 한 번 더 톡. `'dtap'` 하나만 온다(앞의 `'tap'` 없이)
+ * 오른쪽 화면 제스처. 문자열 하나다. (더블탭은 왼쪽 스틱에서 난다 — `InputState.dtap`)
+ * - `'tap'`: 획 없이 짧게 톡. 바로 온다
  * - `'hold'` → `'release'`: 획 없이 180ms 누르고 있으면 `'hold'`, 떼면 `'release'`.
  *   홀드한 채 그은 획이 있으면 뗄 때 그 획을 먼저 보내고 `'release'` 가 뒤따른다(`'hold'`, `'→'`, `'release'`)
  * - 획: `'→'` `'←'` `'↑'` `'↓'` 를 그은 순서대로 이은 문자열(`'↓'`, `'↓↑'`, `'→←→'` …). 손을 **뗄 때** 온다.
@@ -51,7 +55,7 @@ export const ACTION = Object.freeze({
 
 /** 손을 뗀 상태. @returns {InputState} */
 export function neutralInput() {
-  return { dx: 0, dy: 0 };
+  return { dx: 0, dy: 0, dtap: 0 };
 }
 
 // 방 이름을 아는 사람만 붙을 수 있다(Trystero 가 방 이름으로 연결 정보를 암호화) — 추측 못 하게 길게.

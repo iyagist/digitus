@@ -4,7 +4,8 @@
  * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
  * 화면을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
  * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
- * - 오른쪽: 제스처. 탭·더블탭·홀드, 그리고 획(→←↑↓)을 이은 문자열.
+ *   끌지 않고 짧게 두 번 두드리면 더블탭 — 스틱 상태의 `dtap` 횟수를 올린다. 한 번 두드림은 아무것도 아니라 기다릴 필요가 없다.
+ * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
  * 폰 방향은 상관없다 — 지금 화면의 왼쪽·오른쪽 절반이다.
  */
 
@@ -23,7 +24,9 @@ const STROKE_STEP_PX = 12;
 const MIN_STROKE_PX = 30;
 /** 획 없이 이 시간 누르고 있으면 홀드. */
 const HOLD_MS = 180;
-/** 탭을 뗀 뒤 이 시간 안에 가까이(px) 다시 두드리면 더블탭. 그래서 탭은 이만큼 기다렸다 보낸다. */
+/** 스틱 쪽 더블탭 — 끌지 않고(px) 짧게(ms) 뗀 것이 탭, 두 탭을 뗀 시각·자리가 이 안이면 더블탭. */
+const TAP_MOVE_PX = 5;
+const TAP_MAX_MS = 200;
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_PX = 60;
 
@@ -36,13 +39,18 @@ const DOUBLE_TAP_PX = 60;
  */
 export function createPad(root, { onStick, onGesture }) {
   /** @type {InputState} */
-  const state = { dx: 0, dy: 0 };
+  const state = { dx: 0, dy: 0, dtap: 0 };
 
   // ── 왼쪽: 스틱 ──
   /** @type {number | null} */
   let stickId = null;
   let originX = 0;
   let originY = 0;
+  let stickDownAt = 0;
+  /** 이번 터치에서 가장 멀리 끈 거리 — 끌었으면 탭이 아니다. */
+  let stickMaxMove = 0;
+  /** 직전 스틱 탭 — 다음 탭이 가까우면 더블탭. @type {{ x: number, y: number, at: number } | null} */
+  let lastStickTap = null;
 
   /** @param {number} dx @param {number} dy */
   function setStick(dx, dy) {
@@ -57,20 +65,37 @@ export function createPad(root, { onStick, onGesture }) {
 
   /** @param {PointerEvent} e */
   function moveStick(e) {
-    setStick(e.clientX - originX, e.clientY - originY);
+    const dx = e.clientX - originX;
+    const dy = e.clientY - originY;
+    stickMaxMove = Math.max(stickMaxMove, Math.abs(dx), Math.abs(dy));
+    setStick(dx, dy);
   }
 
-  function releaseStick() {
+  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭으로 치지 않는다 */
+  function releaseStick(cancelled) {
     if (stickId === null) return;
     stickId = null;
     setStick(0, 0);
+    const now = performance.now();
+    if (cancelled || stickMaxMove > TAP_MOVE_PX || now - stickDownAt > TAP_MAX_MS) {
+      lastStickTap = null; // 끌었거나 쥐고 있었다 — 탭 연속이 끊긴다
+      return;
+    }
+    if (lastStickTap && now - lastStickTap.at <= DOUBLE_TAP_MS
+      && Math.abs(originX - lastStickTap.x) <= DOUBLE_TAP_PX && Math.abs(originY - lastStickTap.y) <= DOUBLE_TAP_PX) {
+      lastStickTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
+      // 스틱은 스냅샷이라 한 번짜리 표시는 다음 값에 덮일 수 있다 — 누적 횟수로 올린다.
+      state.dtap += 1;
+      navigator.vibrate?.(10);
+      onStick(state);
+      return;
+    }
+    lastStickTap = { x: originX, y: originY, at: now };
   }
 
   // ── 오른쪽: 제스처 ──
   /** @type {number | null} */
   let gestureId = null;
-  let startX = 0;
-  let startY = 0;
   /** 획 방향을 마지막으로 찍은 자리. */
   let lastX = 0;
   let lastY = 0;
@@ -82,26 +107,11 @@ export function createPad(root, { onStick, onGesture }) {
   let holding = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let holdTimer;
-  /**
-   * 보류 중인 탭 — 더블탭이 될지 몰라 아직 안 보냈다. 다음 터치가 DOUBLE_TAP_MS 안에 시작되면 그 터치가 끝날 때
-   * 판정하고, 아니면 타이머가 'tap' 으로 보낸다. @type {{ x: number, y: number } | null}
-   */
-  let pendingTap = null;
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let tapTimer;
 
   /** @param {Gesture} gesture */
   function emit(gesture) {
     navigator.vibrate?.(gesture === 'hold' ? 20 : 10);
     onGesture(gesture);
-  }
-
-  /** 보류 중인 탭을 'tap' 으로 확정해 보낸다. 다른 제스처보다 먼저 보내야 순서가 맞다. */
-  function flushTap() {
-    clearTimeout(tapTimer);
-    if (!pendingTap) return;
-    pendingTap = null;
-    emit('tap');
   }
 
   /** @param {PointerEvent} e */
@@ -132,7 +142,7 @@ export function createPad(root, { onStick, onGesture }) {
     return kept.join('');
   }
 
-  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 이번 터치는 탭·획으로 치지 않는다(앞서 보류한 탭은 보낸다) */
+  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭·획으로 치지 않는다 */
   function releaseGesture(cancelled) {
     if (gestureId === null) return;
     gestureId = null;
@@ -145,25 +155,9 @@ export function createPad(root, { onStick, onGesture }) {
       emit('release');
       return;
     }
-    if (cancelled) {
-      flushTap();
-      return;
-    }
-    if (stroke) {
-      flushTap();
-      emit(stroke);
-      return;
-    }
-    // 획 없이(또는 꼬리만 남기고) 짧게 뗌 = 탭. 보류 중인 탭과 가까우면 둘을 합쳐 더블탭 하나만 보낸다.
-    if (pendingTap
-      && Math.abs(startX - pendingTap.x) <= DOUBLE_TAP_PX && Math.abs(startY - pendingTap.y) <= DOUBLE_TAP_PX) {
-      pendingTap = null;
-      emit('dtap');
-      return;
-    }
-    flushTap(); // 멀리 두드렸으면 앞의 탭은 따로 보내고, 이번 탭을 새로 보류한다.
-    pendingTap = { x: startX, y: startY };
-    tapTimer = setTimeout(flushTap, DOUBLE_TAP_MS);
+    if (cancelled) return;
+    // 획 없이(또는 꼬리만 남기고) 짧게 뗌 = 탭.
+    emit(stroke || 'tap');
   }
 
   // ── 손가락 배분 ──
@@ -175,19 +169,18 @@ export function createPad(root, { onStick, onGesture }) {
       stickId = e.pointerId;
       originX = e.clientX;
       originY = e.clientY;
+      stickDownAt = performance.now();
+      stickMaxMove = 0;
     } else {
       if (gestureId !== null) return;
       gestureId = e.pointerId;
-      startX = lastX = e.clientX;
-      startY = lastY = e.clientY;
+      lastX = e.clientX;
+      lastY = e.clientY;
       strokes = [];
       runs = [];
       holding = false;
-      // 보류 중인 탭이 있으면 이 터치가 끝날 때까지 판정을 미룬다(더블탭의 두 번째일 수 있다).
-      clearTimeout(tapTimer);
       holdTimer = setTimeout(() => {
         holding = true;
-        flushTap();
         emit('hold');
       }, HOLD_MS);
     }
@@ -202,7 +195,7 @@ export function createPad(root, { onStick, onGesture }) {
 
   /** @param {PointerEvent} e */
   function up(e) {
-    if (e.pointerId === stickId) releaseStick();
+    if (e.pointerId === stickId) releaseStick(e.type === 'pointercancel');
     else if (e.pointerId === gestureId) releaseGesture(e.type === 'pointercancel');
   }
 
@@ -212,9 +205,8 @@ export function createPad(root, { onStick, onGesture }) {
   root.addEventListener('pointercancel', up);
 
   function releaseAll() {
-    releaseStick();
+    releaseStick(true);
     releaseGesture(true);
-    flushTap();
   }
 
   return {
