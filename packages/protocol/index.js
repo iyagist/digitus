@@ -65,11 +65,16 @@ export function createRoomId() {
 
 /**
  * 폰이 열 주소. 게임과 방 정보는 해시에 담아 컨트롤러 페이지 서버로 보내지 않는다.
+ *
+ * 쿼리의 `_` 는 뜻 없는 무작위 값이다. 해시는 캐시 키가 아니라서, 없으면 폰 브라우저가 전에 받아 둔
+ * 옛 index.html 을 그대로 쓴다(GitHub Pages 는 10분 캐시) — 컨트롤러를 고쳐 배포해도 옛 판이 돈다.
+ * 스크립트·스타일은 파일 이름에 내용 해시가 있어 캐시돼도 괜찮다.
  * @param {string} controllerUrl
  * @param {{ appId: string, room: string }} target
  */
 export function buildControllerUrl(controllerUrl, { appId, room }) {
   const url = new URL(controllerUrl);
+  url.searchParams.set('_', createRoomId().slice(0, 6));
   url.hash = new URLSearchParams({ a: appId, r: room }).toString();
   return url.toString();
 }
