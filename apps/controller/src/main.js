@@ -66,7 +66,7 @@ function connect({ appId, room }) {
   // 터치 이벤트는 프레임보다 자주 온다 — 프레임당 한 번, 마지막 상태만 보낸다.
   function flush() {
     if (pending && hostId) {
-      inputAction.send({ v: PROTOCOL_VERSION, seq: seq++, state: pending }, { target: hostId });
+      inputAction.send({ seq: seq++, state: pending }, { target: hostId });
     }
     pending = null;
   }
@@ -83,12 +83,14 @@ function connect({ appId, room }) {
       return;
     }
     hostId = peerId;
+    // 답례 — 호스트는 이걸 받고 버전이 맞으면 이 폰을 플레이어로 받는다.
+    helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
     pad?.destroy();
     pad = createPad(padEl, {
       onStick: queue,
       // 제스처는 한 번뿐인 사건이라 모으지 않고 바로 보낸다(스틱보다 먼저 가도 괜찮다).
       onGesture: (gesture) => {
-        if (hostId) gestureAction.send({ v: PROTOCOL_VERSION, gesture }, { target: hostId });
+        if (hostId) gestureAction.send({ gesture }, { target: hostId });
       },
     });
     setStatus('');

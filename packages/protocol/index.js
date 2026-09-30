@@ -7,14 +7,19 @@
  */
 
 /**
- * 메시지 형식 버전. 다르면 서로 무시한다(컨트롤러는 "버전이 맞지 않아요" 를 띄운다).
+ * 메시지 형식 버전. 연결할 때 HELLO 로 한 번 맞추고, 다르면 붙지 않는다
+ * (컨트롤러는 "버전이 맞지 않아요" 를 띄우고, 호스트는 그 폰을 플레이어로 받지 않는다).
  * 출시 전에는 지킬 옛 게임이 없어 1 로 둔다 — 출시 뒤 메시지 모양이 바뀔 때부터 올린다.
  */
 export const PROTOCOL_VERSION = 1;
 
 /** Trystero 액션 이름. */
 export const ACTION = Object.freeze({
-  /** 호스트 → 컨트롤러: 내가 호스트다(컨트롤러끼리도 연결되므로 이걸로 호스트를 알아본다) */
+  /**
+   * 연결 인사. 버전은 여기서 한 번만 맞춘다(이후 메시지엔 없다).
+   * 호스트 → 컨트롤러: 내가 호스트다(컨트롤러끼리도 연결되므로 이걸로 호스트를 알아본다).
+   * 컨트롤러 → 호스트: 답례. 버전이 맞으면 호스트가 이때 플레이어로 받는다.
+   */
   HELLO: 'hello',
   /** 컨트롤러 → 호스트: 스틱 스냅샷 */
   INPUT: 'input',
@@ -52,8 +57,8 @@ export const ACTION = Object.freeze({
 
 /**
  * @typedef {{ v: number }} HelloMessage
- * @typedef {{ v: number, seq: number, state: InputState }} InputMessage
- * @typedef {{ v: number, gesture: Gesture }} GestureMessage
+ * @typedef {{ seq: number, state: InputState }} InputMessage
+ * @typedef {{ gesture: Gesture }} GestureMessage
  */
 
 /** 손을 뗀 상태. @returns {InputState} */

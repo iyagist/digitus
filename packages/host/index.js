@@ -83,11 +83,19 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
   addEventListener('pagehide', host.close);
 
   // 컨트롤러끼리도 서로 연결되지만(Trystero 는 방 안을 모두 잇는다) 입력은 호스트에게만 보낸다.
-  // 컨트롤러는 HELLO 를 보낸 쪽을 호스트로 알아본다.
+  // 컨트롤러는 HELLO 를 보낸 쪽을 호스트로 알아보고 HELLO 로 답한다. 버전은 이 한 번만 맞춘다.
   trysteroRoom.onPeerJoin = (peerId) => {
+    helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
+  };
+
+  helloAction.onMessage = (message, { peerId }) => {
+    if (players.has(peerId)) return;
+    if (message.v !== PROTOCOL_VERSION) {
+      console.warn(`[digitus] 컨트롤러 버전이 달라 받지 않음 (컨트롤러 ${message.v}, 게임 ${PROTOCOL_VERSION})`);
+      return;
+    }
     const player = { id: peerId, index: nextIndex(), state: neutralInput(), seq: -1 };
     players.set(peerId, player);
-    helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
     host.onJoin?.(player);
   };
 
@@ -100,7 +108,7 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
 
   inputAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
-    if (!player || message.v !== PROTOCOL_VERSION || message.seq <= player.seq) return;
+    if (!player || message.seq <= player.seq) return;
     player.seq = message.seq;
     player.state = message.state;
     host.onInput?.(player.state, player);
@@ -108,7 +116,7 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
 
   gestureAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
-    if (!player || message.v !== PROTOCOL_VERSION) return;
+    if (!player) return;
     host.onGesture?.(message.gesture, player);
   };
 
