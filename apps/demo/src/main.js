@@ -48,7 +48,7 @@ host.onGesture = (/** @type {import('@digitus/protocol').Gesture} */ gesture, /*
   const view = views.get(player.id);
   if (!view) return;
   const li = document.createElement('li');
-  li.textContent = gesture.type === 'swipe' ? `swipe [${gesture.dir.join(', ')}]` : gesture.type;
+  li.textContent = gesture;
   view.log.prepend(li);
   while (view.log.children.length > 8) view.log.lastChild?.remove();
 };

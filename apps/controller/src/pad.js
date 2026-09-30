@@ -4,7 +4,7 @@
  * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
  * 화면을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
  * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
- * - 오른쪽: 제스처(탭·스와이프·홀드).
+ * - 오른쪽: 제스처. 탭·더블탭·홀드, 그리고 획(→←↑↓)을 이은 문자열.
  * 폰 방향은 상관없다 — 지금 화면의 왼쪽·오른쪽 절반이다.
  */
 
@@ -13,16 +13,19 @@
  * @typedef {import('@digitus/protocol').Gesture} Gesture
  */
 
-/** 이만큼 쓸면 스와이프. 화면 짧은 변 대비. */
-const SWIPE_DISTANCE = 0.08;
-/** 이 시간 넘게 제자리에 누르고 있으면 홀드. */
-const HOLD_MS = 350;
-
-/** 메시지를 작게 — 입력 정밀도는 이 정도면 충분하다. @param {number} n */
-const round = (n) => Math.round(n * 1000) / 1000;
-
-/** 화면 짧은 변(px). 방향을 바꾸면 달라지므로 매번 잰다. */
-const shortSide = () => Math.min(innerWidth, innerHeight);
+// 판정 값은 DarkSeouls 패드에서 실측으로 맞춘 것을 그대로 쓴다.
+/** 이만큼(px) 움직일 때마다 가로·세로 중 큰 쪽으로 획 방향을 찍는다. */
+const STROKE_STEP_PX = 12;
+/**
+ * 한 획으로 인정하는 최소 길이(px). 엄지는 뿌리에서 돌아 올려긋기가 오른쪽 위로 휘고, 획 끝에서 세로가 먼저 죽으면
+ * 짧은 가로 꼬리가 붙는다(`↓↑` 가 `↓↑→` 로). 실측에서 의도한 획은 34px 이상, 꼬리는 25px 이하였다.
+ */
+const MIN_STROKE_PX = 30;
+/** 획 없이 이 시간 누르고 있으면 홀드. */
+const HOLD_MS = 180;
+/** 두 탭 사이가 이 시간·거리 안이면 더블탭. */
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_PX = 60;
 
 /**
  * @param {HTMLElement} root 터치를 받을 요소(화면 전체)
@@ -68,37 +71,82 @@ export function createPad(root, { onStick, onGesture }) {
   let gestureId = null;
   let startX = 0;
   let startY = 0;
-  /** 이 손가락이 이미 제스처를 냈으면(스와이프·홀드) 뗄 때 탭으로 치지 않는다. */
-  let fired = /** @type {'swipe' | 'hold' | null} */ (null);
+  /** 획 방향을 마지막으로 찍은 자리. */
+  let lastX = 0;
+  let lastY = 0;
+  /** 찍힌 획들과 각 획의 길이(px). 같은 방향이 이어지면 한 획으로 늘린다. */
+  /** @type {string[]} */
+  let strokes = [];
+  /** @type {number[]} */
+  let runs = [];
+  let holding = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let holdTimer;
+  /** 직전 탭 — 다음 탭이 가까우면 더블탭. @type {{ x: number, y: number, at: number } | null} */
+  let lastTap = null;
 
   /** @param {Gesture} gesture */
   function emit(gesture) {
-    navigator.vibrate?.(gesture.type === 'hold' ? 20 : 10);
+    navigator.vibrate?.(gesture === 'hold' ? 20 : 10);
     onGesture(gesture);
   }
 
   /** @param {PointerEvent} e */
   function moveGesture(e) {
-    if (fired) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    const len = Math.hypot(dx, dy);
-    if (len < shortSide() * SWIPE_DISTANCE) return;
-    clearTimeout(holdTimer);
-    fired = 'swipe';
-    emit({ type: 'swipe', dir: [round(dx / len), round(dy / len)] });
+    if (holding) return; // 홀드가 된 뒤로는 움직여도 획이 아니다(뗄 때까지 홀드).
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    if (Math.abs(dx) < STROKE_STEP_PX && Math.abs(dy) < STROKE_STEP_PX) return;
+    clearTimeout(holdTimer); // 획이 생겼으니 홀드가 아니다.
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const dir = horizontal ? (dx > 0 ? '→' : '←') : (dy > 0 ? '↓' : '↑');
+    if (strokes[strokes.length - 1] !== dir) {
+      strokes.push(dir);
+      runs.push(0);
+    }
+    runs[runs.length - 1] += Math.abs(horizontal ? dx : dy);
+    lastX = e.clientX;
+    lastY = e.clientY;
   }
 
-  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭으로 치지 않는다 */
+  /** 짧은 획(꼬리)을 버리고, 그래서 이웃하게 된 같은 방향을 다시 접는다(`↓→↓` → `↓`). */
+  function resolveStrokes() {
+    /** @type {string[]} */
+    const kept = [];
+    strokes.forEach((dir, i) => {
+      if (runs[i] < MIN_STROKE_PX || kept[kept.length - 1] === dir) return;
+      kept.push(dir);
+    });
+    return kept.join('');
+  }
+
+  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭·획으로 치지 않는다 */
   function releaseGesture(cancelled) {
     if (gestureId === null) return;
     gestureId = null;
     clearTimeout(holdTimer);
-    if (fired === 'hold') emit({ type: 'release' });
-    else if (!fired && !cancelled) emit({ type: 'tap' });
-    fired = null;
+    if (holding) {
+      holding = false;
+      emit('release');
+      return;
+    }
+    if (cancelled) return;
+    const stroke = resolveStrokes();
+    if (stroke) {
+      lastTap = null;
+      emit(stroke);
+      return;
+    }
+    // 획 없이(또는 꼬리만 남기고) 짧게 뗌 = 탭. 직전 탭과 가까우면 더블탭 — 탭은 기다리지 않고 바로 보낸다.
+    const now = performance.now();
+    if (lastTap && now - lastTap.at <= DOUBLE_TAP_MS
+      && Math.abs(startX - lastTap.x) <= DOUBLE_TAP_PX && Math.abs(startY - lastTap.y) <= DOUBLE_TAP_PX) {
+      lastTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
+      emit('dtap');
+      return;
+    }
+    lastTap = { x: startX, y: startY, at: now };
+    emit('tap');
   }
 
   // ── 손가락 배분 ──
@@ -113,12 +161,15 @@ export function createPad(root, { onStick, onGesture }) {
     } else {
       if (gestureId !== null) return;
       gestureId = e.pointerId;
-      startX = e.clientX;
-      startY = e.clientY;
-      fired = null;
+      startX = lastX = e.clientX;
+      startY = lastY = e.clientY;
+      strokes = [];
+      runs = [];
+      holding = false;
       holdTimer = setTimeout(() => {
-        fired = 'hold';
-        emit({ type: 'hold' });
+        holding = true;
+        lastTap = null;
+        emit('hold');
       }, HOLD_MS);
     }
     root.setPointerCapture(e.pointerId);
@@ -144,6 +195,7 @@ export function createPad(root, { onStick, onGesture }) {
   function releaseAll() {
     releaseStick();
     releaseGesture(true);
+    lastTap = null;
   }
 
   return {

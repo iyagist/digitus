@@ -7,7 +7,7 @@
  */
 
 /** 메시지 형식이 바뀌면 올린다. 다르면 서로 무시한다. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** Trystero 액션 이름. */
 export const ACTION = Object.freeze({
@@ -30,12 +30,16 @@ export const ACTION = Object.freeze({
  */
 
 /**
- * 오른쪽 화면 제스처. 손가락 하나가 만드는 것은 셋 중 하나다.
- * - `tap`: 짧게 톡
- * - `swipe`: 일정 거리를 넘게 쓸면 **넘는 순간** 온다. `dir` 은 단위 벡터(화면 좌표계) — 몇 방향으로 나눌지는 게임 몫
- * - `hold` → `release`: 제자리에서 오래 누르면 `hold`, 떼면 `release`
+ * 오른쪽 화면 제스처. 문자열 하나다.
+ * - `'tap'`: 획 없이 짧게 톡. 바로 온다(더블탭을 기다리지 않는다)
+ * - `'dtap'`: 직전 탭과 300ms·60px 안에서 한 번 더 톡. 그래서 더블탭은 `'tap'` 다음에 `'dtap'` 으로 온다
+ * - `'hold'` → `'release'`: 획 없이 180ms 누르고 있으면 `'hold'`, 떼면 `'release'`. 홀드 중엔 움직여도 획이 아니다
+ * - 획: `'→'` `'←'` `'↑'` `'↓'` 를 그은 순서대로 이은 문자열(`'↓'`, `'↓↑'`, `'→←→'` …). 손을 **뗄 때** 온다.
+ *   같은 방향은 하나로 접고, 30px 미만 획(엄지가 휘며 붙는 꼬리)은 버린다
  *
- * @typedef {{ type: 'tap' } | { type: 'swipe', dir: [number, number] } | { type: 'hold' } | { type: 'release' }} Gesture
+ * 무슨 동작인지(공격·회피…)는 게임이 정한다.
+ *
+ * @typedef {string} Gesture
  */
 
 /**
