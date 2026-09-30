@@ -23,7 +23,7 @@ const STROKE_STEP_PX = 12;
 const MIN_STROKE_PX = 30;
 /** 획 없이 이 시간 누르고 있으면 홀드. */
 const HOLD_MS = 180;
-/** 두 탭 사이가 이 시간·거리 안이면 더블탭. */
+/** 탭을 뗀 뒤 이 시간 안에 가까이(px) 다시 두드리면 더블탭. 그래서 탭은 이만큼 기다렸다 보낸다. */
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_PX = 60;
 
@@ -82,13 +82,26 @@ export function createPad(root, { onStick, onGesture }) {
   let holding = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let holdTimer;
-  /** 직전 탭 — 다음 탭이 가까우면 더블탭. @type {{ x: number, y: number, at: number } | null} */
-  let lastTap = null;
+  /**
+   * 보류 중인 탭 — 더블탭이 될지 몰라 아직 안 보냈다. 다음 터치가 DOUBLE_TAP_MS 안에 시작되면 그 터치가 끝날 때
+   * 판정하고, 아니면 타이머가 'tap' 으로 보낸다. @type {{ x: number, y: number } | null}
+   */
+  let pendingTap = null;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let tapTimer;
 
   /** @param {Gesture} gesture */
   function emit(gesture) {
     navigator.vibrate?.(gesture === 'hold' ? 20 : 10);
     onGesture(gesture);
+  }
+
+  /** 보류 중인 탭을 'tap' 으로 확정해 보낸다. 다른 제스처보다 먼저 보내야 순서가 맞다. */
+  function flushTap() {
+    clearTimeout(tapTimer);
+    if (!pendingTap) return;
+    pendingTap = null;
+    emit('tap');
   }
 
   /** @param {PointerEvent} e */
@@ -119,7 +132,7 @@ export function createPad(root, { onStick, onGesture }) {
     return kept.join('');
   }
 
-  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭·획으로 치지 않는다 */
+  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 이번 터치는 탭·획으로 치지 않는다(앞서 보류한 탭은 보낸다) */
   function releaseGesture(cancelled) {
     if (gestureId === null) return;
     gestureId = null;
@@ -132,22 +145,25 @@ export function createPad(root, { onStick, onGesture }) {
       emit('release');
       return;
     }
-    if (cancelled) return;
+    if (cancelled) {
+      flushTap();
+      return;
+    }
     if (stroke) {
-      lastTap = null;
+      flushTap();
       emit(stroke);
       return;
     }
-    // 획 없이(또는 꼬리만 남기고) 짧게 뗌 = 탭. 직전 탭과 가까우면 더블탭 — 탭은 기다리지 않고 바로 보낸다.
-    const now = performance.now();
-    if (lastTap && now - lastTap.at <= DOUBLE_TAP_MS
-      && Math.abs(startX - lastTap.x) <= DOUBLE_TAP_PX && Math.abs(startY - lastTap.y) <= DOUBLE_TAP_PX) {
-      lastTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
+    // 획 없이(또는 꼬리만 남기고) 짧게 뗌 = 탭. 보류 중인 탭과 가까우면 둘을 합쳐 더블탭 하나만 보낸다.
+    if (pendingTap
+      && Math.abs(startX - pendingTap.x) <= DOUBLE_TAP_PX && Math.abs(startY - pendingTap.y) <= DOUBLE_TAP_PX) {
+      pendingTap = null;
       emit('dtap');
       return;
     }
-    lastTap = { x: startX, y: startY, at: now };
-    emit('tap');
+    flushTap(); // 멀리 두드렸으면 앞의 탭은 따로 보내고, 이번 탭을 새로 보류한다.
+    pendingTap = { x: startX, y: startY };
+    tapTimer = setTimeout(flushTap, DOUBLE_TAP_MS);
   }
 
   // ── 손가락 배분 ──
@@ -167,9 +183,11 @@ export function createPad(root, { onStick, onGesture }) {
       strokes = [];
       runs = [];
       holding = false;
+      // 보류 중인 탭이 있으면 이 터치가 끝날 때까지 판정을 미룬다(더블탭의 두 번째일 수 있다).
+      clearTimeout(tapTimer);
       holdTimer = setTimeout(() => {
         holding = true;
-        lastTap = null;
+        flushTap();
         emit('hold');
       }, HOLD_MS);
     }
@@ -196,7 +214,7 @@ export function createPad(root, { onStick, onGesture }) {
   function releaseAll() {
     releaseStick();
     releaseGesture(true);
-    lastTap = null;
+    flushTap();
   }
 
   return {
