@@ -14,10 +14,22 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 
 | 패키지 | 역할 |
 |---|---|
-| `packages/protocol` | 호스트·컨트롤러가 공유하는 약속: 메시지 형식, 배치(Layout), 입력 상태, 주소 |
-| `packages/host` | 게임이 가져다 쓰는 라이브러리. 방을 열고, 배치를 보내고, 입력을 받는다 |
-| `apps/controller` | 폰 컨트롤러 페이지. **모든 게임이 이 페이지 하나를 같이 쓴다** — 무엇을 그릴지는 게임이 보낸 배치로 정한다 |
+| `packages/protocol` | 호스트·컨트롤러가 공유하는 약속: 메시지 형식, 입력 상태, 제스처, 주소 |
+| `packages/host` | 게임이 가져다 쓰는 라이브러리. 방을 열고 스틱·제스처를 받는다 |
+| `apps/controller` | 폰 컨트롤러 페이지. **모든 게임이 이 페이지 하나를 같이 쓴다** |
 | `apps/demo` | 호스트 사용 예. 입력을 화면에 그대로 보여준다 |
+
+## 컨트롤러
+
+플레이어는 폰을 보지 않고 게임 화면을 보며 조작한다. 그래서 컨트롤러는 **아무것도 그리지 않는다** —
+버튼 자리를 찾아 폰을 봐야 한다면 패드가 아니다. 화면을 반으로 나눠, 손가락이 처음 닿은 쪽이 역할을 정한다.
+
+| 화면 | 역할 |
+|---|---|
+| 왼쪽 절반 | **스틱.** 닿은 곳이 중심, 끄는 방향·거리가 값. 끝(짧은 변의 15%)을 넘게 끌면 중심이 따라온다 |
+| 오른쪽 절반 | **제스처.** 탭 / 스와이프(짧은 변의 8%를 넘는 순간) / 홀드(350ms 제자리) → 뗄 때 release |
+
+폰 방향은 상관없다(세로·가로 모두 그때 화면의 왼쪽·오른쪽 절반). 양쪽 손가락은 동시에 쓸 수 있다.
 
 ## 사용법 (게임 쪽)
 
@@ -25,29 +37,27 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 import { createHost } from '@digitus/host';
 
 const host = createHost({
-  appId: 'my-game',                              // 게임마다 고유
+  appId: 'my-game',                                     // 게임마다 고유
   controllerUrl: 'https://iyagist.github.io/digitus/',  // 컨트롤러 페이지 주소
-  layout: {
-    orientation: 'landscape',
-    controls: [
-      { type: 'stick', id: 'move', x: 0.22, y: 0.6 },
-      { type: 'button', id: 'a', label: 'A', x: 0.85, y: 0.65 },
-    ],
-  },
 });
 
 showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
 
-// 이벤트로 받거나
-host.onInput = (state, player) => { /* state.sticks.move = [x, y], state.buttons.a = true */ };
+// 스틱: 이벤트로 받거나
+host.onInput = (state, player) => { /* state.stick = [x, y] */ };
 // 게임 루프에서 읽는다
-for (const player of host.players.values()) player.state;
+for (const player of host.players.values()) player.state.stick;
+
+// 제스처: 이벤트로만
+host.onGesture = (gesture, player) => {
+  // { type: 'tap' } | { type: 'swipe', dir: [x, y] } | { type: 'hold' } | { type: 'release' }
+};
 ```
 
 - 스틱 값은 `[-1, 1]`, 화면 좌표계(오른쪽 +x, 아래 +y). 데드존은 게임이 정한다.
-- 입력은 매번 **전체 스냅샷**이다. 하나를 놓쳐도 다음 것으로 복구된다.
-- 배치의 `x`, `y` 는 화면 비율(0~1)의 중심, `r` 은 화면 짧은 변 대비 반지름(기본 스틱 0.3, 버튼 0.12).
-- `host.setLayout(next)` 로 게임 중 배치를 바꿀 수 있다(메뉴 ↔ 플레이 등).
+- 스틱은 매번 **전체 스냅샷**이다. 하나를 놓쳐도 다음 것으로 복구된다.
+- 스와이프 `dir` 은 단위 벡터다. 4방향·8방향 등으로 나누는 건 게임 몫.
+- 제스처가 무슨 동작인지(공격·회피 등)도 게임이 정한다.
 - 플레이어는 `index`(0부터)로 구분한다. 나간 자리는 다음에 들어온 사람이 채운다.
 
 ## 배포

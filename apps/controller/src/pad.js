@@ -1,137 +1,168 @@
 /**
- * 배치(Layout)를 화면에 그리고, 터치를 입력 상태로 바꾼다. 네트워크는 모른다.
+ * 화면 터치를 입력으로 바꾼다. 네트워크는 모른다.
+ *
+ * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
+ * 화면을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
+ * - 왼쪽: 스틱. 닿은 곳이 중심, 끌면 그 방향·거리. 반지름 밖으로 끌면 중심이 따라와 반대로 꺾을 때 바로 반응한다.
+ * - 오른쪽: 제스처(탭·스와이프·홀드).
+ * 폰 방향은 상관없다 — 지금 화면의 왼쪽·오른쪽 절반이다.
  */
-import { neutralInput } from '@digitus/protocol';
 
 /**
- * @typedef {import('@digitus/protocol').Layout} Layout
  * @typedef {import('@digitus/protocol').InputState} InputState
- * @typedef {import('@digitus/protocol').StickControl} StickControl
- * @typedef {import('@digitus/protocol').ButtonControl} ButtonControl
+ * @typedef {import('@digitus/protocol').Gesture} Gesture
  */
 
-const DEFAULT_RADIUS = { stick: 0.3, button: 0.12 };
+/** 스틱을 끝까지 기울이는 거리. 화면 짧은 변 대비. */
+const STICK_RADIUS = 0.15;
+/** 이만큼 쓸면 스와이프. 화면 짧은 변 대비. */
+const SWIPE_DISTANCE = 0.08;
+/** 이 시간 넘게 제자리에 누르고 있으면 홀드. */
+const HOLD_MS = 350;
 
 /** 메시지를 작게 — 입력 정밀도는 이 정도면 충분하다. @param {number} n */
 const round = (n) => Math.round(n * 1000) / 1000;
 
+/** 화면 짧은 변(px). 방향을 바꾸면 달라지므로 매번 잰다. */
+const shortSide = () => Math.min(innerWidth, innerHeight);
+
 /**
- * @param {HTMLElement} root
- * @param {Layout} layout
- * @param {(state: InputState) => void} onChange
+ * @param {HTMLElement} root 터치를 받을 요소(화면 전체)
+ * @param {{
+ *   onStick: (state: InputState) => void,
+ *   onGesture: (gesture: Gesture) => void,
+ * }} handlers
  */
-export function createPad(root, layout, onChange) {
-  const state = neutralInput(layout);
-  /** @type {(() => void)[]} */
-  const resets = [];
+export function createPad(root, { onStick, onGesture }) {
+  /** @type {InputState} */
+  const state = { stick: [0, 0] };
 
-  root.replaceChildren();
-  for (const control of layout.controls) {
-    const el = document.createElement('div');
-    const r = control.r ?? DEFAULT_RADIUS[control.type];
-    el.className = control.type;
-    el.style.left = `${control.x * 100}%`;
-    el.style.top = `${control.y * 100}%`;
-    el.style.width = el.style.height = `${r * 200}vmin`;
-    root.append(el);
-    resets.push(control.type === 'stick' ? bindStick(el, control) : bindButton(el, control));
+  // ── 왼쪽: 스틱 ──
+  /** @type {number | null} */
+  let stickId = null;
+  let originX = 0;
+  let originY = 0;
+
+  /** @param {number} x @param {number} y */
+  function setStick(x, y) {
+    state.stick = [round(x), round(y)];
+    onStick(state);
   }
 
-  /** @param {HTMLElement} el @param {StickControl} control */
-  function bindStick(el, control) {
-    const knob = document.createElement('div');
-    knob.className = 'knob';
-    el.append(knob);
-    /** @type {number | null} */
-    let pointerId = null;
-
-    /** @param {number} x @param {number} y */
-    function set(x, y) {
-      state.sticks[control.id] = [round(x), round(y)];
-      // 손잡이 지름 = 스틱의 40%(style.css 의 inset 30%). 가장자리까지 스틱의 30% = 손잡이의 75%.
-      knob.style.transform = `translate(${x * 75}%, ${y * 75}%)`;
-      onChange(state);
+  /** @param {PointerEvent} e */
+  function moveStick(e) {
+    const radius = shortSide() * STICK_RADIUS;
+    let dx = e.clientX - originX;
+    let dy = e.clientY - originY;
+    const len = Math.hypot(dx, dy);
+    if (len > radius) {
+      // 중심을 손가락 쪽으로 끌어와, 손가락은 늘 반지름 위에 있게 한다.
+      originX += dx * (1 - radius / len);
+      originY += dy * (1 - radius / len);
+      dx *= radius / len;
+      dy *= radius / len;
     }
-
-    /** @param {PointerEvent} e */
-    function move(e) {
-      const rect = el.getBoundingClientRect();
-      const radius = rect.width / 2;
-      let x = (e.clientX - (rect.left + radius)) / radius;
-      let y = (e.clientY - (rect.top + radius)) / radius;
-      const len = Math.hypot(x, y);
-      if (len > 1) {
-        x /= len;
-        y /= len;
-      }
-      set(x, y);
-    }
-
-    function release() {
-      pointerId = null;
-      el.classList.remove('active');
-      set(0, 0);
-    }
-
-    el.addEventListener('pointerdown', (e) => {
-      if (pointerId !== null) return;
-      pointerId = e.pointerId;
-      el.setPointerCapture(e.pointerId);
-      el.classList.add('active');
-      move(e);
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (e.pointerId === pointerId) move(e);
-    });
-    for (const type of /** @type {const} */ (['pointerup', 'pointercancel'])) {
-      el.addEventListener(type, (e) => {
-        if (e.pointerId === pointerId) release();
-      });
-    }
-    return release;
+    setStick(dx / radius, dy / radius);
   }
 
-  /** @param {HTMLElement} el @param {ButtonControl} control */
-  function bindButton(el, control) {
-    el.textContent = control.label ?? control.id;
-    /** @type {Set<number>} */
-    const pointers = new Set();
+  function releaseStick() {
+    if (stickId === null) return;
+    stickId = null;
+    setStick(0, 0);
+  }
 
-    /** @param {boolean} down */
-    function set(down) {
-      if (state.buttons[control.id] === down) return;
-      state.buttons[control.id] = down;
-      el.classList.toggle('active', down);
-      if (down) navigator.vibrate?.(10);
-      onChange(state);
-    }
+  // ── 오른쪽: 제스처 ──
+  /** @type {number | null} */
+  let gestureId = null;
+  let startX = 0;
+  let startY = 0;
+  /** 이 손가락이 이미 제스처를 냈으면(스와이프·홀드) 뗄 때 탭으로 치지 않는다. */
+  let fired = /** @type {'swipe' | 'hold' | null} */ (null);
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let holdTimer;
 
-    el.addEventListener('pointerdown', (e) => {
-      // 터치는 누른 요소에 자동으로 붙잡혀 pointerleave 가 오지 않는다 — 풀어준다.
-      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-      pointers.add(e.pointerId);
-      set(true);
-    });
-    // 손가락이 버튼 밖으로 미끄러지면 뗀 것으로 본다.
-    for (const type of /** @type {const} */ (['pointerup', 'pointercancel', 'pointerleave'])) {
-      el.addEventListener(type, (e) => {
-        pointers.delete(e.pointerId);
-        if (pointers.size === 0) set(false);
-      });
+  /** @param {Gesture} gesture */
+  function emit(gesture) {
+    navigator.vibrate?.(gesture.type === 'hold' ? 20 : 10);
+    onGesture(gesture);
+  }
+
+  /** @param {PointerEvent} e */
+  function moveGesture(e) {
+    if (fired) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const len = Math.hypot(dx, dy);
+    if (len < shortSide() * SWIPE_DISTANCE) return;
+    clearTimeout(holdTimer);
+    fired = 'swipe';
+    emit({ type: 'swipe', dir: [round(dx / len), round(dy / len)] });
+  }
+
+  /** @param {boolean} cancelled 앱 전환 등으로 끊겼으면 탭으로 치지 않는다 */
+  function releaseGesture(cancelled) {
+    if (gestureId === null) return;
+    gestureId = null;
+    clearTimeout(holdTimer);
+    if (fired === 'hold') emit({ type: 'release' });
+    else if (!fired && !cancelled) emit({ type: 'tap' });
+    fired = null;
+  }
+
+  // ── 손가락 배분 ──
+  /** @param {PointerEvent} e */
+  function down(e) {
+    // 한쪽에 손가락 하나만 — 같은 쪽에 두 번째 손가락이 닿으면 무시한다.
+    if (e.clientX < innerWidth / 2) {
+      if (stickId !== null) return;
+      stickId = e.pointerId;
+      originX = e.clientX;
+      originY = e.clientY;
+    } else {
+      if (gestureId !== null) return;
+      gestureId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      fired = null;
+      holdTimer = setTimeout(() => {
+        fired = 'hold';
+        emit({ type: 'hold' });
+      }, HOLD_MS);
     }
-    return () => {
-      pointers.clear();
-      set(false);
-    };
+    root.setPointerCapture(e.pointerId);
+  }
+
+  /** @param {PointerEvent} e */
+  function move(e) {
+    if (e.pointerId === stickId) moveStick(e);
+    else if (e.pointerId === gestureId) moveGesture(e);
+  }
+
+  /** @param {PointerEvent} e */
+  function up(e) {
+    if (e.pointerId === stickId) releaseStick();
+    else if (e.pointerId === gestureId) releaseGesture(e.type === 'pointercancel');
+  }
+
+  root.addEventListener('pointerdown', down);
+  root.addEventListener('pointermove', move);
+  root.addEventListener('pointerup', up);
+  root.addEventListener('pointercancel', up);
+
+  function releaseAll() {
+    releaseStick();
+    releaseGesture(true);
   }
 
   return {
     /** 모든 입력을 뗀다(앱 전환 등으로 pointerup 을 못 받을 때). */
-    releaseAll() {
-      for (const reset of resets) reset();
-    },
+    releaseAll,
     destroy() {
-      root.replaceChildren();
+      releaseAll();
+      root.removeEventListener('pointerdown', down);
+      root.removeEventListener('pointermove', move);
+      root.removeEventListener('pointerup', up);
+      root.removeEventListener('pointercancel', up);
     },
   };
 }

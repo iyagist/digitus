@@ -4,20 +4,9 @@
 import QRCode from 'qrcode';
 import { createHost } from '@digitus/host';
 
-/** @type {import('@digitus/protocol').Layout} */
-const layout = {
-  orientation: 'landscape',
-  controls: [
-    { type: 'stick', id: 'move', x: 0.22, y: 0.6 },
-    { type: 'button', id: 'a', label: 'A', x: 0.85, y: 0.65 },
-    { type: 'button', id: 'b', label: 'B', x: 0.7, y: 0.78 },
-  ],
-};
-
 const host = createHost({
   appId: 'digitus-demo',
   controllerUrl: import.meta.env.VITE_CONTROLLER_URL,
-  layout,
 });
 
 const urlEl = /** @type {HTMLAnchorElement} */ (document.getElementById('url'));
@@ -26,7 +15,7 @@ const playersEl = /** @type {HTMLElement} */ (document.getElementById('players')
 QRCode.toCanvas(document.getElementById('qr'), host.url, { width: 280, margin: 0 });
 urlEl.href = urlEl.textContent = host.url;
 
-/** @type {Map<string, { el: HTMLElement, pre: HTMLElement, dot: HTMLElement, ping: HTMLElement }>} */
+/** @type {Map<string, { el: HTMLElement, pre: HTMLElement, dot: HTMLElement, ping: HTMLElement, log: HTMLElement }>} */
 const views = new Map();
 
 /** @typedef {import('@digitus/host').Player} Player */
@@ -34,13 +23,14 @@ const views = new Map();
 host.onJoin = (/** @type {Player} */ player) => {
   const el = document.createElement('div');
   el.className = 'player';
-  el.innerHTML = `<strong>P${player.index + 1}</strong> <small class="ping"></small><div class="dot"><span></span></div><pre></pre>`;
+  el.innerHTML = `<strong>P${player.index + 1}</strong> <small class="ping"></small><div class="dot"><span></span></div><pre></pre><ol class="log"></ol>`;
   playersEl.append(el);
   const view = {
     el,
     pre: /** @type {HTMLElement} */ (el.querySelector('pre')),
     dot: /** @type {HTMLElement} */ (el.querySelector('.dot span')),
     ping: /** @type {HTMLElement} */ (el.querySelector('.ping')),
+    log: /** @type {HTMLElement} */ (el.querySelector('.log')),
   };
   views.set(player.id, view);
   render(player);
@@ -53,11 +43,21 @@ host.onLeave = (/** @type {Player} */ player) => {
 
 host.onInput = (/** @type {unknown} */ _state, /** @type {Player} */ player) => render(player);
 
+/** 최근 제스처 몇 개를 위에서부터 보여준다. */
+host.onGesture = (/** @type {import('@digitus/protocol').Gesture} */ gesture, /** @type {Player} */ player) => {
+  const view = views.get(player.id);
+  if (!view) return;
+  const li = document.createElement('li');
+  li.textContent = gesture.type === 'swipe' ? `swipe [${gesture.dir.join(', ')}]` : gesture.type;
+  view.log.prepend(li);
+  while (view.log.children.length > 8) view.log.lastChild?.remove();
+};
+
 /** @param {Player} player */
 function render(player) {
   const view = views.get(player.id);
   if (!view) return;
-  const [x, y] = player.state.sticks.move ?? [0, 0];
+  const [x, y] = player.state.stick;
   view.dot.style.left = `${50 + x * 50}%`;
   view.dot.style.top = `${50 + y * 50}%`;
   view.pre.textContent = JSON.stringify(player.state, null, 1);

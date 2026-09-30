@@ -14,6 +14,8 @@
       .player pre { margin: 8px 0 0; font-size: 13px; }
       .dot { position: relative; width: 120px; height: 120px; border-radius: 50%; border: 1px solid #333844; margin-top: 8px; }
       .dot span { position: absolute; width: 16px; height: 16px; margin: -8px; border-radius: 50%; background: #78aaff; left: 50%; top: 50%; }
+      .log { margin: 8px 0 0; padding-left: 20px; font-size: 13px; color: #8a90a0; }
+      .log li:first-child { color: #e8eaf0; }
       .hint { color: #8a90a0; font-size: 14px; max-width: 480px; }
     </style>
   </head>
@@ -24,7 +26,7 @@
         <a id="url" target="_blank"></a>
       </section>
       <section>
-        <p class="hint">폰 카메라로 QR 코드를 찍으세요. 개발용 인증서라 폰에서 한 번 “안전하지 않음”을 허용해야 해요.</p>
+        <p class="hint">폰 카메라로 QR 코드를 찍으세요. 화면 왼쪽 절반은 스틱, 오른쪽 절반은 탭·쓸기·누르기예요. 개발용 인증서라 폰에서 한 번 “안전하지 않음”을 허용해야 해요.</p>
         <div id="players"></div>
       </section>
     </main>

@@ -9,8 +9,9 @@ import './style.css';
 
 /**
  * @typedef {import('@digitus/protocol').InputState} InputState
- * @typedef {import('@digitus/protocol').LayoutMessage} LayoutMessage
+ * @typedef {import('@digitus/protocol').HelloMessage} HelloMessage
  * @typedef {import('@digitus/protocol').InputMessage} InputMessage
+ * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
  */
 
 const padEl = /** @type {HTMLElement} */ (document.getElementById('pad'));
@@ -47,10 +48,12 @@ if (!target) {
 function connect({ appId, room }) {
   setStatus('게임 찾는 중…');
   const trysteroRoom = joinRoom({ appId }, room);
-  /** @type {import('trystero').MessageAction<LayoutMessage>} */
-  const layoutAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.LAYOUT));
+  /** @type {import('trystero').MessageAction<HelloMessage>} */
+  const helloAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.HELLO));
   /** @type {import('trystero').MessageAction<InputMessage>} */
   const inputAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.INPUT));
+  /** @type {import('trystero').MessageAction<GestureMessage>} */
+  const gestureAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.GESTURE));
 
   /** @type {string | null} */
   let hostId = null;
@@ -74,16 +77,22 @@ function connect({ appId, room }) {
     pending = state;
   }
 
-  layoutAction.onMessage = (message, { peerId }) => {
+  helloAction.onMessage = (message, { peerId }) => {
     if (message.v !== PROTOCOL_VERSION) {
       setStatus('게임과 컨트롤러 버전이 맞지 않아요');
       return;
     }
     hostId = peerId;
-    document.body.dataset.orientation = message.layout.orientation ?? 'landscape';
     pad?.destroy();
-    pad = createPad(padEl, message.layout, queue);
+    pad = createPad(padEl, {
+      onStick: queue,
+      // 제스처는 한 번뿐인 사건이라 모으지 않고 바로 보낸다(스틱보다 먼저 가도 괜찮다).
+      onGesture: (gesture) => {
+        if (hostId) gestureAction.send({ v: PROTOCOL_VERSION, gesture }, { target: hostId });
+      },
+    });
     setStatus('');
+    document.body.classList.add('connected');
   };
 
   trysteroRoom.onPeerLeave = (peerId) => {
@@ -92,9 +101,10 @@ function connect({ appId, room }) {
     pad?.destroy();
     pad = null;
     setStatus('게임과 연결이 끊겼어요');
+    document.body.classList.remove('connected');
   };
 
-  // 앱 전환·화면 끔에서는 pointerup 이 오지 않아 버튼이 눌린 채 남는다.
+  // 앱 전환·화면 끔에서는 pointerup 이 오지 않아 스틱이 기운 채 남는다.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pad?.releaseAll();
   });

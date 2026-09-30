@@ -2,10 +2,7 @@
   --bg: #111318;
   --fg: #e8eaf0;
   --muted: #8a90a0;
-  --control: rgba(255, 255, 255, 0.08);
   --control-border: rgba(255, 255, 255, 0.25);
-  --active: rgba(120, 170, 255, 0.35);
-  --knob: rgba(255, 255, 255, 0.6);
   color-scheme: dark;
 }
 
@@ -31,37 +28,6 @@ body {
   inset: 0;
 }
 
-.stick,
-.button {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px solid var(--control-border);
-  background: var(--control);
-  box-sizing: border-box;
-}
-
-.stick.active,
-.button.active {
-  background: var(--active);
-}
-
-.knob {
-  position: absolute;
-  inset: 30%;
-  border-radius: 50%;
-  background: var(--knob);
-  pointer-events: none;
-}
-
-.button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 6vmin;
-  font-weight: 600;
-}
-
 #status {
   position: fixed;
   inset: 0;
@@ -78,20 +44,30 @@ body {
   display: none;
 }
 
-#rotate {
+/* 폰을 보지 않고 쓰는 패드라 그리는 건 없다. 처음 한 번 어느 쪽이 무엇인지만 흐리게 알려 준다. */
+#guide {
+  position: fixed;
+  inset: 0;
   display: none;
+  pointer-events: none;
+  color: var(--muted);
+  opacity: 0.35;
+  font-size: 14px;
 }
 
-@media (orientation: portrait) {
-  body[data-orientation='landscape'] #rotate {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    color: var(--fg);
-  }
+body.connected #guide {
+  display: flex;
+}
+
+#guide span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#guide span + span {
+  border-left: 1px dashed var(--control-border);
 }
 
 #fullscreen {
