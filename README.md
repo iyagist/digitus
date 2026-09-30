@@ -26,7 +26,7 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 
 | 화면 | 역할 |
 |---|---|
-| 왼쪽 절반 | **스틱.** 닿은 곳이 중심, 끄는 방향·거리가 값. 끝(짧은 변의 15%)을 넘게 끌면 중심이 따라온다 |
+| 왼쪽 절반 | **스틱.** 닿은 곳에서 지금 위치까지의 이동량(px) `{ dx, dy }`. 끝이 없다 — 끄는 만큼 커진다 |
 | 오른쪽 절반 | **제스처.** 탭 / 스와이프(짧은 변의 8%를 넘는 순간) / 홀드(350ms 제자리) → 뗄 때 release |
 
 폰 방향은 상관없다(세로·가로 모두 그때 화면의 왼쪽·오른쪽 절반). 양쪽 손가락은 동시에 쓸 수 있다.
@@ -44,9 +44,9 @@ const host = createHost({
 showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
 
 // 스틱: 이벤트로 받거나
-host.onInput = (state, player) => { /* state.stick = [x, y] */ };
+host.onInput = (state, player) => { /* state = { dx, dy } */ };
 // 게임 루프에서 읽는다
-for (const player of host.players.values()) player.state.stick;
+for (const player of host.players.values()) player.state.dx;
 
 // 제스처: 이벤트로만
 host.onGesture = (gesture, player) => {
@@ -54,7 +54,7 @@ host.onGesture = (gesture, player) => {
 };
 ```
 
-- 스틱 값은 `[-1, 1]`, 화면 좌표계(오른쪽 +x, 아래 +y). 데드존은 게임이 정한다.
+- 스틱 값은 폰 화면의 CSS px 정수, 화면 좌표계(오른쪽 +x, 아래 +y). 떼면 `0, 0`. 데드존·최대치는 게임이 정한다.
 - 스틱은 매번 **전체 스냅샷**이다. 하나를 놓쳐도 다음 것으로 복구된다.
 - 스와이프 `dir` 은 단위 벡터다. 4방향·8방향 등으로 나누는 건 게임 몫.
 - 제스처가 무슨 동작인지(공격·회피 등)도 게임이 정한다.

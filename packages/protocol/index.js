@@ -1,13 +1,13 @@
 /**
  * 호스트(게임)와 컨트롤러(폰) 사이의 약속. 양쪽이 이 파일만 공유한다.
  *
- * 컨트롤러는 화면을 반으로 나눠 쓴다 — 왼쪽은 스틱(어디든 닿은 곳이 중심), 오른쪽은 제스처.
+ * 컨트롤러는 화면을 반으로 나눠 쓴다 — 왼쪽은 스틱(어디든 닿은 곳이 시작점), 오른쪽은 제스처.
  * 플레이어는 폰을 보지 않고 조작하므로 그리는 것도, 게임마다 다른 배치도 없다.
  * 게임 개념(공격·회피)은 여기 두지 않는다 — 스틱 값과 제스처만 오가고, 그 의미는 게임이 정한다.
  */
 
 /** 메시지 형식이 바뀌면 올린다. 다르면 서로 무시한다. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Trystero 액션 이름. */
 export const ACTION = Object.freeze({
@@ -20,11 +20,13 @@ export const ACTION = Object.freeze({
 });
 
 /**
- * 한 시점의 스틱 상태. 변화분이 아니라 스냅샷이라 하나를 놓쳐도 다음 것으로 복구된다.
- * 값은 [-1, 1], 화면 좌표계(오른쪽 +x, 아래 +y). 폰을 세우든 눕히든 폰 화면 기준이다. 데드존은 게임이 정한다.
+ * 한 시점의 스틱 상태: 손가락이 **처음 닿은 곳에서 지금 위치까지** 이동량(CSS px, 정수). 떼면 0, 0.
+ * 끝이 없다 — 끄는 만큼 커진다. 화면 좌표계(오른쪽 +x, 아래 +y), 폰을 세우든 눕히든 폰 화면 기준이다.
+ * 직전 대비 변화분이 아니라 스냅샷이라 하나를 놓쳐도 다음 것으로 복구된다. 데드존·최대치는 게임이 정한다.
  *
  * @typedef {object} InputState
- * @property {[number, number]} stick
+ * @property {number} dx
+ * @property {number} dy
  */
 
 /**
@@ -44,7 +46,7 @@ export const ACTION = Object.freeze({
 
 /** 손을 뗀 상태. @returns {InputState} */
 export function neutralInput() {
-  return { stick: [0, 0] };
+  return { dx: 0, dy: 0 };
 }
 
 // 방 이름을 아는 사람만 붙을 수 있다(Trystero 가 방 이름으로 연결 정보를 암호화) — 추측 못 하게 길게.

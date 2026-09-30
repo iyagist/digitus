@@ -3,7 +3,7 @@
  *
  * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
  * 화면을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
- * - 왼쪽: 스틱. 닿은 곳이 중심, 끌면 그 방향·거리. 반지름 밖으로 끌면 중심이 따라와 반대로 꺾을 때 바로 반응한다.
+ * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
  * - 오른쪽: 제스처(탭·스와이프·홀드).
  * 폰 방향은 상관없다 — 지금 화면의 왼쪽·오른쪽 절반이다.
  */
@@ -13,8 +13,6 @@
  * @typedef {import('@digitus/protocol').Gesture} Gesture
  */
 
-/** 스틱을 끝까지 기울이는 거리. 화면 짧은 변 대비. */
-const STICK_RADIUS = 0.15;
 /** 이만큼 쓸면 스와이프. 화면 짧은 변 대비. */
 const SWIPE_DISTANCE = 0.08;
 /** 이 시간 넘게 제자리에 누르고 있으면 홀드. */
@@ -35,7 +33,7 @@ const shortSide = () => Math.min(innerWidth, innerHeight);
  */
 export function createPad(root, { onStick, onGesture }) {
   /** @type {InputState} */
-  const state = { stick: [0, 0] };
+  const state = { dx: 0, dy: 0 };
 
   // ── 왼쪽: 스틱 ──
   /** @type {number | null} */
@@ -43,26 +41,20 @@ export function createPad(root, { onStick, onGesture }) {
   let originX = 0;
   let originY = 0;
 
-  /** @param {number} x @param {number} y */
-  function setStick(x, y) {
-    state.stick = [round(x), round(y)];
+  /** @param {number} dx @param {number} dy */
+  function setStick(dx, dy) {
+    // 1px 아래 흔들림은 보내지 않는다.
+    dx = Math.round(dx);
+    dy = Math.round(dy);
+    if (dx === state.dx && dy === state.dy) return;
+    state.dx = dx;
+    state.dy = dy;
     onStick(state);
   }
 
   /** @param {PointerEvent} e */
   function moveStick(e) {
-    const radius = shortSide() * STICK_RADIUS;
-    let dx = e.clientX - originX;
-    let dy = e.clientY - originY;
-    const len = Math.hypot(dx, dy);
-    if (len > radius) {
-      // 중심을 손가락 쪽으로 끌어와, 손가락은 늘 반지름 위에 있게 한다.
-      originX += dx * (1 - radius / len);
-      originY += dy * (1 - radius / len);
-      dx *= radius / len;
-      dy *= radius / len;
-    }
-    setStick(dx / radius, dy / radius);
+    setStick(e.clientX - originX, e.clientY - originY);
   }
 
   function releaseStick() {

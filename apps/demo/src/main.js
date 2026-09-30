@@ -53,13 +53,17 @@ host.onGesture = (/** @type {import('@digitus/protocol').Gesture} */ gesture, /*
   while (view.log.children.length > 8) view.log.lastChild?.remove();
 };
 
+const DOT_RANGE = 100;
+
 /** @param {Player} player */
 function render(player) {
   const view = views.get(player.id);
   if (!view) return;
-  const [x, y] = player.state.stick;
-  view.dot.style.left = `${50 + x * 50}%`;
-  view.dot.style.top = `${50 + y * 50}%`;
+  // 점은 100px 끌면 원 가장자리에 닿게 보여준다(값 자체는 끝이 없다).
+  const { dx, dy } = player.state;
+  const len = Math.max(1, Math.hypot(dx, dy) / DOT_RANGE);
+  view.dot.style.left = `${50 + (dx / DOT_RANGE / len) * 50}%`;
+  view.dot.style.top = `${50 + (dy / DOT_RANGE / len) * 50}%`;
   view.pre.textContent = JSON.stringify(player.state, null, 1);
 }
 
