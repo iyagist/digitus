@@ -6,8 +6,11 @@
  * 게임 개념(공격·회피)은 여기 두지 않는다 — 스틱 값과 제스처만 오가고, 그 의미는 게임이 정한다.
  */
 
-/** 메시지 형식이 바뀌면 올린다. 다르면 서로 무시한다. */
-export const PROTOCOL_VERSION = 5;
+/**
+ * 메시지 형식 버전. 다르면 서로 무시한다(컨트롤러는 "버전이 맞지 않아요" 를 띄운다).
+ * 출시 전에는 지킬 옛 게임이 없어 1 로 둔다 — 출시 뒤 메시지 모양이 바뀔 때부터 올린다.
+ */
+export const PROTOCOL_VERSION = 1;
 
 /** Trystero 액션 이름. */
 export const ACTION = Object.freeze({
