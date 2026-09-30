@@ -60,21 +60,11 @@ function connect({ appId, room }) {
   /** @type {ReturnType<typeof createPad> | null} */
   let pad = null;
   let seq = 0;
-  /** @type {InputState | null} */
-  let pending = null;
 
-  // 터치 이벤트는 프레임보다 자주 온다 — 프레임당 한 번, 마지막 상태만 보낸다.
-  function flush() {
-    if (pending && hostId) {
-      inputAction.send({ seq: seq++, state: pending }, { target: hostId });
-    }
-    pending = null;
-  }
-
+  // 바뀔 때마다 바로 보낸다 — 모았다 보내면 dtap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
   /** @param {InputState} state */
-  function queue(state) {
-    if (!pending) requestAnimationFrame(flush);
-    pending = state;
+  function sendStick(state) {
+    if (hostId) inputAction.send({ seq: seq++, state }, { target: hostId });
   }
 
   helloAction.onMessage = (message, { peerId }) => {
@@ -87,7 +77,7 @@ function connect({ appId, room }) {
     helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
     pad?.destroy();
     pad = createPad(padEl, {
-      onStick: queue,
+      onStick: sendStick,
       // 제스처는 한 번뿐인 사건이라 모으지 않고 바로 보낸다(스틱보다 먼저 가도 괜찮다).
       onGesture: (gesture) => {
         if (hostId) gestureAction.send({ gesture }, { target: hostId });

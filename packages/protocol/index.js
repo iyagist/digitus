@@ -28,18 +28,17 @@ export const ACTION = Object.freeze({
 });
 
 /**
- * 한 시점의 스틱 상태: 손가락이 **처음 닿은 곳에서 지금 위치까지** 이동량(CSS px, 정수). 떼면 0, 0.
+ * 스틱 입력. 손가락이 **처음 닿은 곳에서 지금 위치까지** 이동량(CSS px, 정수). 떼면 0, 0.
  * 끝이 없다 — 끄는 만큼 커진다. 화면 좌표계(오른쪽 +x, 아래 +y), 폰을 세우든 눕히든 폰 화면 기준이다.
- * 직전 대비 변화분이 아니라 스냅샷이라 하나를 놓쳐도 다음 것으로 복구된다. 데드존·최대치는 게임이 정한다.
+ * 바뀔 때마다 바로 보낸다. 데드존·최대치는 게임이 정한다.
  *
- * `dtap` 은 스틱 쪽 더블탭(끌지 않고 5px·짧게 200ms 두 번, 두 탭을 뗀 간격 300ms·거리 60px 안)의 **누적 횟수**다.
- * 늘었으면 그만큼 더블탭이 났다. 한 번짜리 표시로 두면 스냅샷끼리 덮여 사라질 수 있어 횟수로 둔다.
- * 한 번 두드림은 아무것도 아니다. 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
+ * `dtap` 은 스틱 쪽 더블탭(끌지 않고 5px·짧게 200ms 두 번, 두 탭을 뗀 간격 300ms·거리 60px 안)이 **난 그 메시지에만**
+ * `true` 로 실린다. 한 번 두드림은 아무것도 아니다. 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
  *
  * @typedef {object} InputState
  * @property {number} dx
  * @property {number} dy
- * @property {number} dtap
+ * @property {true} [dtap]
  */
 
 /**
@@ -63,7 +62,7 @@ export const ACTION = Object.freeze({
 
 /** 손을 뗀 상태. @returns {InputState} */
 export function neutralInput() {
-  return { dx: 0, dy: 0, dtap: 0 };
+  return { dx: 0, dy: 0 };
 }
 
 // 방 이름을 아는 사람만 붙을 수 있다(Trystero 가 방 이름으로 연결 정보를 암호화) — 추측 못 하게 길게.

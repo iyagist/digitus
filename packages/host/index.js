@@ -25,7 +25,7 @@ import {
  * @typedef {object} Player
  * @property {string} id Trystero 피어 ID
  * @property {number} index 0부터. 나간 자리는 다음에 들어온 사람이 채운다
- * @property {InputState} state 최신 스틱
+ * @property {InputState} state 최신 스틱(`dx`, `dy`). 한 번짜리인 `dtap` 은 담지 않는다 — `onInput` 으로만 온다
  * @property {number} seq 마지막으로 받은 입력 번호
  *
  * @typedef {object} HostOptions
@@ -110,8 +110,9 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
     const player = players.get(peerId);
     if (!player || message.seq <= player.seq) return;
     player.seq = message.seq;
-    player.state = message.state;
-    host.onInput?.(player.state, player);
+    // 게임 루프가 폴링할 때 dtap 이 남아 매 프레임 잡히지 않게, 보관하는 상태엔 이동량만 둔다.
+    player.state = { dx: message.state.dx, dy: message.state.dy };
+    host.onInput?.(message.state, player);
   };
 
   gestureAction.onMessage = (message, { peerId }) => {

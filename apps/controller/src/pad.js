@@ -4,7 +4,7 @@
  * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
  * 화면을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
  * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
- *   끌지 않고 짧게 두 번 두드리면 더블탭 — 스틱 상태의 `dtap` 횟수를 올린다. 한 번 두드림은 아무것도 아니라 기다릴 필요가 없다.
+ *   끌지 않고 짧게 두 번 두드리면 더블탭 — `dtap: true` 를 실은 스틱 입력 하나를 보낸다. 한 번 두드림은 아무것도 아니라 기다릴 필요가 없다.
  * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
  * 폰 방향은 상관없다 — 지금 화면의 왼쪽·오른쪽 절반이다.
  */
@@ -39,7 +39,7 @@ const DOUBLE_TAP_PX = 60;
  */
 export function createPad(root, { onStick, onGesture }) {
   /** @type {InputState} */
-  const state = { dx: 0, dy: 0, dtap: 0 };
+  const state = { dx: 0, dy: 0 };
 
   // ── 왼쪽: 스틱 ──
   /** @type {number | null} */
@@ -84,10 +84,8 @@ export function createPad(root, { onStick, onGesture }) {
     if (lastStickTap && now - lastStickTap.at <= DOUBLE_TAP_MS
       && Math.abs(originX - lastStickTap.x) <= DOUBLE_TAP_PX && Math.abs(originY - lastStickTap.y) <= DOUBLE_TAP_PX) {
       lastStickTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
-      // 스틱은 스냅샷이라 한 번짜리 표시는 다음 값에 덮일 수 있다 — 누적 횟수로 올린다.
-      state.dtap += 1;
       navigator.vibrate?.(10);
-      onStick(state);
+      onStick({ ...state, dtap: true }); // 이 한 번에만 싣는다
       return;
     }
     lastStickTap = { x: originX, y: originY, at: now };
