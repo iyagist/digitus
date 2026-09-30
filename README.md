@@ -26,7 +26,7 @@ import { createHost } from '@digitus/host';
 
 const host = createHost({
   appId: 'my-game',                              // 게임마다 고유
-  controllerUrl: 'https://controller.example/',  // 컨트롤러 페이지 주소
+  controllerUrl: 'https://iyagist.github.io/digitus/',  // 컨트롤러 페이지 주소
   layout: {
     orientation: 'landscape',
     controls: [
@@ -49,6 +49,12 @@ for (const player of host.players.values()) player.state;
 - 배치의 `x`, `y` 는 화면 비율(0~1)의 중심, `r` 은 화면 짧은 변 대비 반지름(기본 스틱 0.3, 버튼 0.12).
 - `host.setLayout(next)` 로 게임 중 배치를 바꿀 수 있다(메뉴 ↔ 플레이 등).
 - 플레이어는 `index`(0부터)로 구분한다. 나간 자리는 다음에 들어온 사람이 채운다.
+
+## 배포
+
+컨트롤러 페이지는 `main` 에 push 하면 GitHub Actions(`.github/workflows/pages.yml`)가 빌드해
+**https://iyagist.github.io/digitus/** 에 올린다. 정적 파일(HTML·JS·CSS)뿐이라 서버는 없다.
+처음 한 번 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 둬야 한다.
 
 ## 개발
 
@@ -81,4 +87,3 @@ pnpm lint
 
 - 스팀(Electron)판의 인터넷 없는 LAN 연결 — 연결 방식을 하나 더 두는 식으로 붙일 자리.
 - Gamepad API 흉내(폰 입력을 `navigator.getGamepads()` 로 노출).
-- 컨트롤러 페이지 배포.
