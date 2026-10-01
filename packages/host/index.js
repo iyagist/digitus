@@ -107,7 +107,6 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
 
   inputAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
-    // 순서 확인은 하지 않는다 — Trystero 데이터 채널은 순서·전달을 보장한다(기본 ordered·reliable).
     if (!player) return;
     // 게임 루프가 폴링할 때 dtap 이 남아 매 프레임 잡히지 않게, 보관하는 상태엔 이동량만 둔다.
     player.state = { dx: message.state.dx, dy: message.state.dy };
