@@ -56,7 +56,7 @@ export const ACTION = Object.freeze({
 
 /**
  * @typedef {{ v: number }} HelloMessage
- * @typedef {{ seq: number, state: InputState }} InputMessage
+ * @typedef {{ state: InputState }} InputMessage
  * @typedef {{ gesture: Gesture }} GestureMessage
  */
 

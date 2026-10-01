@@ -58,12 +58,11 @@ function connect({ appId, room }) {
   let hostId = null;
   /** @type {ReturnType<typeof createTouch> | null} */
   let pad = null;
-  let seq = 0;
 
   // 바뀔 때마다 바로 보낸다 — 모았다 보내면 dtap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
   /** @param {InputState} state */
   function sendStick(state) {
-    if (hostId) inputAction.send({ seq: seq++, state }, { target: hostId });
+    if (hostId) inputAction.send({ state }, { target: hostId });
   }
 
   helloAction.onMessage = (message, { peerId }) => {

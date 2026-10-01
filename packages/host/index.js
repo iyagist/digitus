@@ -26,7 +26,6 @@ import {
  * @property {string} id Trystero 피어 ID
  * @property {number} index 0부터. 나간 자리는 다음에 들어온 사람이 채운다
  * @property {InputState} state 최신 스틱(`dx`, `dy`). 한 번짜리인 `dtap` 은 담지 않는다 — `onInput` 으로만 온다
- * @property {number} seq 마지막으로 받은 입력 번호
  *
  * @typedef {object} HostOptions
  * @property {string} appId 게임마다 고유한 값. 컨트롤러와 같아야 한다
@@ -94,7 +93,7 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
       console.warn(`[digitus] 컨트롤러 버전이 달라 받지 않음 (컨트롤러 ${message.v}, 게임 ${PROTOCOL_VERSION})`);
       return;
     }
-    const player = { id: peerId, index: nextIndex(), state: neutralInput(), seq: -1 };
+    const player = { id: peerId, index: nextIndex(), state: neutralInput() };
     players.set(peerId, player);
     host.onJoin?.(player);
   };
@@ -108,8 +107,8 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
 
   inputAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
-    if (!player || message.seq <= player.seq) return;
-    player.seq = message.seq;
+    // 순서 확인은 하지 않는다 — Trystero 데이터 채널은 순서·전달을 보장한다(기본 ordered·reliable).
+    if (!player) return;
     // 게임 루프가 폴링할 때 dtap 이 남아 매 프레임 잡히지 않게, 보관하는 상태엔 이동량만 둔다.
     player.state = { dx: message.state.dx, dy: message.state.dy };
     host.onInput?.(message.state, player);
