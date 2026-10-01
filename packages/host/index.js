@@ -2,7 +2,7 @@
  * 게임(PC 브라우저) 쪽 라이브러리. 방을 열고, 폰 컨트롤러의 스틱과 제스처를 받는다.
  *
  * 스틱(`{ dx, dy }`, 닿은 곳에서의 이동량 px)은 두 방식으로 쓸 수 있다.
- * - 이벤트: `host.onInput = (state, player) => …`
+ * - 이벤트: `host.onStick = (state, player) => …`
  * - 폴링: 게임 루프에서 `host.players` 의 `state` 를 읽는다(키보드 상태를 읽듯).
  * 제스처는 이벤트로만 온다: `host.onGesture = (gesture, player) => …`
  */
@@ -12,20 +12,20 @@ import {
   PROTOCOL_VERSION,
   buildControllerUrl,
   createRoomId,
-  neutralInput,
+  neutralStick,
 } from '@digitus/protocol';
 
 /**
- * @typedef {import('@digitus/protocol').InputState} InputState
+ * @typedef {import('@digitus/protocol').StickState} StickState
  * @typedef {import('@digitus/protocol').Gesture} Gesture
  * @typedef {import('@digitus/protocol').HelloMessage} HelloMessage
- * @typedef {import('@digitus/protocol').InputMessage} InputMessage
+ * @typedef {import('@digitus/protocol').StickMessage} StickMessage
  * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
  *
  * @typedef {object} Player
  * @property {string} id Trystero 피어 ID
  * @property {number} index 0부터. 나간 자리는 다음에 들어온 사람이 채운다
- * @property {InputState} state 최신 스틱(`dx`, `dy`). 한 번짜리인 `dtap` 은 담지 않는다 — `onInput` 으로만 온다
+ * @property {StickState} state 최신 스틱(`dx`, `dy`). 한 번짜리인 `dtap` 은 담지 않는다 — `onStick` 으로만 온다
  *
  * @typedef {object} HostOptions
  * @property {string} appId 게임마다 고유한 값. 컨트롤러와 같아야 한다
@@ -40,8 +40,8 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
 
   /** @type {import('trystero').MessageAction<HelloMessage>} */
   const helloAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.HELLO));
-  /** @type {import('trystero').MessageAction<InputMessage>} */
-  const inputAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.INPUT));
+  /** @type {import('trystero').MessageAction<StickMessage>} */
+  const stickAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.STICK));
   /** @type {import('trystero').MessageAction<GestureMessage>} */
   const gestureAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.GESTURE));
 
@@ -63,7 +63,7 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
     players,
     onJoin: /** @type {((player: Player) => void) | null} */ (null),
     onLeave: /** @type {((player: Player) => void) | null} */ (null),
-    onInput: /** @type {((state: InputState, player: Player) => void) | null} */ (null),
+    onStick: /** @type {((state: StickState, player: Player) => void) | null} */ (null),
     onGesture: /** @type {((gesture: Gesture, player: Player) => void) | null} */ (null),
 
     /** 왕복 지연(ms). @param {string} playerId */
@@ -93,7 +93,7 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
       console.warn(`[digitus] 컨트롤러 버전이 달라 받지 않음 (컨트롤러 ${message.v}, 게임 ${PROTOCOL_VERSION})`);
       return;
     }
-    const player = { id: peerId, index: nextIndex(), state: neutralInput() };
+    const player = { id: peerId, index: nextIndex(), state: neutralStick() };
     players.set(peerId, player);
     host.onJoin?.(player);
   };
@@ -105,12 +105,12 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
     host.onLeave?.(player);
   };
 
-  inputAction.onMessage = (message, { peerId }) => {
+  stickAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
     if (!player) return;
     // 게임 루프가 폴링할 때 dtap 이 남아 매 프레임 잡히지 않게, 보관하는 상태엔 이동량만 둔다.
     player.state = { dx: message.state.dx, dy: message.state.dy };
-    host.onInput?.(message.state, player);
+    host.onStick?.(message.state, player);
   };
 
   gestureAction.onMessage = (message, { peerId }) => {

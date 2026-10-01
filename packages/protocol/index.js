@@ -22,7 +22,7 @@ export const ACTION = Object.freeze({
    */
   HELLO: 'hello',
   /** 컨트롤러 → 호스트: 스틱 스냅샷 */
-  INPUT: 'input',
+  STICK: 'stick',
   /** 컨트롤러 → 호스트: 오른쪽 화면 제스처 */
   GESTURE: 'gesture',
 });
@@ -35,14 +35,14 @@ export const ACTION = Object.freeze({
  * `dtap` 은 스틱 쪽 더블탭(끌지 않고 5px·짧게 200ms 두 번, 두 탭을 뗀 간격 300ms·거리 60px 안)이 **난 그 메시지에만**
  * `true` 로 실린다. 한 번 두드림은 아무것도 아니다. 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
  *
- * @typedef {object} InputState
+ * @typedef {object} StickState
  * @property {number} dx
  * @property {number} dy
  * @property {true} [dtap]
  */
 
 /**
- * 오른쪽 화면 제스처. 문자열 하나다. (더블탭은 왼쪽 스틱에서 난다 — `InputState.dtap`)
+ * 오른쪽 화면 제스처. 문자열 하나다. (더블탭은 왼쪽 스틱에서 난다 — `StickState.dtap`)
  * - `'tap'`: 획 없이 짧게 톡. 바로 온다
  * - `'hold'` → `'release'`: 획 없이 180ms 누르고 있으면 `'hold'`, 떼면 `'release'`.
  *   홀드한 채 그은 획이 있으면 뗄 때 그 획을 먼저 보내고 `'release'` 가 뒤따른다(`'hold'`, `'→'`, `'release'`)
@@ -56,12 +56,12 @@ export const ACTION = Object.freeze({
 
 /**
  * @typedef {{ v: number }} HelloMessage
- * @typedef {{ state: InputState }} InputMessage
+ * @typedef {{ state: StickState }} StickMessage
  * @typedef {{ gesture: Gesture }} GestureMessage
  */
 
-/** 손을 뗀 상태. @returns {InputState} */
-export function neutralInput() {
+/** 손을 뗀 상태. @returns {StickState} */
+export function neutralStick() {
   return { dx: 0, dy: 0 };
 }
 

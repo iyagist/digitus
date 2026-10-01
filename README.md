@@ -45,7 +45,7 @@ const host = createHost({
 showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
 
 // 스틱: 이벤트로 받거나
-host.onInput = (state, player) => { /* state = { dx, dy, dtap? } — dtap 이 true 면 더블탭 */ };
+host.onStick = (state, player) => { /* state = { dx, dy, dtap? } — dtap 이 true 면 더블탭 */ };
 // 게임 루프에서 읽는다
 for (const player of host.players.values()) player.state.dx;
 
@@ -56,7 +56,7 @@ host.onGesture = (gesture, player) => {
 ```
 
 - 스틱 값은 폰 화면의 CSS px 정수, 화면 좌표계(오른쪽 +x, 아래 +y). 떼면 `0, 0`. 데드존·최대치는 게임이 정한다.
-- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state` 에는 `dx`, `dy` 만 있다(`dtap` 은 `onInput` 으로만).
+- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state` 에는 `dx`, `dy` 만 있다(`dtap` 은 `onStick` 으로만).
 - 더블탭은 **왼쪽(스틱)** 에서 나고, 그 순간의 스틱 입력에 `dtap: true` 로 실려 온다(DarkSeouls 의 회피와 같은 자리).
   왼쪽 한 번 톡은 아무 뜻이 없어 기다릴 필요가 없고, 그래서 오른쪽 `'tap'` 도 늦추지 않고 바로 보낸다.
 - 홀드한 채 그으면 뗄 때 `'hold'`, `'→'`, `'release'` 순으로 온다(모았다가 튕기기 등). 가드처럼 쓰는 게임은 홀드 중의 획을 무시하면 된다.
@@ -73,7 +73,7 @@ host.onGesture = (gesture, player) => {
 import { createTouch } from '@digitus/touch';
 
 const touch = createTouch(window);  // 터치를 받을 대상. 이 영역을 반으로 나눈다(기본 window). 요소를 넘겨도 된다
-touch.onInput = (state) => { /* { dx, dy, dtap? } — host.onInput 과 같은 값 */ };
+touch.onStick = (state) => { /* { dx, dy, dtap? } — host.onStick 과 같은 값 */ };
 touch.onGesture = (gesture) => { /* 'tap' | 'hold' | 'release' | '→' … — host.onGesture 와 같은 문자열 */ };
 touch.state;      // 폴링용 { dx, dy }
 touch.destroy();

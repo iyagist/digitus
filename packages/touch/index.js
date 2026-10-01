@@ -12,7 +12,7 @@
  */
 
 /**
- * @typedef {import('@digitus/protocol').InputState} InputState
+ * @typedef {import('@digitus/protocol').StickState} StickState
  * @typedef {import('@digitus/protocol').Gesture} Gesture
  */
 
@@ -40,7 +40,7 @@ const IGNORE_SELECTOR = 'button, a, input, select, textarea, label, [data-digitu
  * @param {{ mouse?: boolean }} [options] `mouse`: 마우스 끌기·클릭도 받는다(기본 true)
  */
 export function createTouch(target = window, { mouse = true } = {}) {
-  /** @type {InputState} */
+  /** @type {StickState} */
   const state = { dx: 0, dy: 0 };
   const isWindow = target === window;
   const element = isWindow ? null : /** @type {HTMLElement} */ (target);
@@ -67,7 +67,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
     if (dx === state.dx && dy === state.dy) return;
     state.dx = dx;
     state.dy = dy;
-    touch.onInput?.(state);
+    touch.onStick?.(state);
   }
 
   /** @param {PointerEvent} e */
@@ -92,7 +92,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
       && Math.abs(originX - lastStickTap.x) <= DOUBLE_TAP_PX && Math.abs(originY - lastStickTap.y) <= DOUBLE_TAP_PX) {
       lastStickTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
       navigator.vibrate?.(10);
-      touch.onInput?.({ ...state, dtap: true }); // 이 한 번에만 싣는다
+      touch.onStick?.({ ...state, dtap: true }); // 이 한 번에만 싣는다
       return;
     }
     lastStickTap = { x: originX, y: originY, at: now };
@@ -235,9 +235,9 @@ export function createTouch(target = window, { mouse = true } = {}) {
 
   const touch = {
     /** 지금 스틱(이동량). 폴링용 — 한 번짜리인 dtap 은 담지 않는다. */
-    state: /** @type {Readonly<InputState>} */ (state),
-    /** 스틱이 바뀔 때. 폰 호스트의 `onInput` 과 같은 값(`{ dx, dy, dtap? }`). */
-    onInput: /** @type {((state: InputState) => void) | null} */ (null),
+    state: /** @type {Readonly<StickState>} */ (state),
+    /** 스틱이 바뀔 때. 폰 호스트의 `onStick` 과 같은 값(`{ dx, dy, dtap? }`). */
+    onStick: /** @type {((state: StickState) => void) | null} */ (null),
     /** 오른쪽 제스처. 폰 호스트의 `onGesture` 와 같은 문자열. */
     onGesture: /** @type {((gesture: Gesture) => void) | null} */ (null),
     /** 모든 입력을 뗀다(메뉴를 열 때 등). */

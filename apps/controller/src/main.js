@@ -8,9 +8,9 @@ import { createTouch } from '@digitus/touch';
 import './style.css';
 
 /**
- * @typedef {import('@digitus/protocol').InputState} InputState
+ * @typedef {import('@digitus/protocol').StickState} StickState
  * @typedef {import('@digitus/protocol').HelloMessage} HelloMessage
- * @typedef {import('@digitus/protocol').InputMessage} InputMessage
+ * @typedef {import('@digitus/protocol').StickMessage} StickMessage
  * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
  */
 
@@ -49,8 +49,8 @@ function connect({ appId, room }) {
   const trysteroRoom = joinRoom({ appId }, room);
   /** @type {import('trystero').MessageAction<HelloMessage>} */
   const helloAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.HELLO));
-  /** @type {import('trystero').MessageAction<InputMessage>} */
-  const inputAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.INPUT));
+  /** @type {import('trystero').MessageAction<StickMessage>} */
+  const stickAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.STICK));
   /** @type {import('trystero').MessageAction<GestureMessage>} */
   const gestureAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.GESTURE));
 
@@ -60,9 +60,9 @@ function connect({ appId, room }) {
   let pad = null;
 
   // 바뀔 때마다 바로 보낸다 — 모았다 보내면 dtap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
-  /** @param {InputState} state */
+  /** @param {StickState} state */
   function sendStick(state) {
-    if (hostId) inputAction.send({ state }, { target: hostId });
+    if (hostId) stickAction.send({ state }, { target: hostId });
   }
 
   helloAction.onMessage = (message, { peerId }) => {
@@ -75,7 +75,7 @@ function connect({ appId, room }) {
     helloAction.send({ v: PROTOCOL_VERSION }, { target: peerId });
     pad?.destroy();
     pad = createTouch(); // 폰 화면 전체
-    pad.onInput = sendStick;
+    pad.onStick = sendStick;
     pad.onGesture = (gesture) => {
       if (hostId) gestureAction.send({ gesture }, { target: hostId });
     };

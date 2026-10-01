@@ -41,7 +41,7 @@ host.onLeave = (/** @type {Player} */ player) => {
   views.delete(player.id);
 };
 
-host.onInput = (/** @type {unknown} */ _state, /** @type {Player} */ player) => render(player);
+host.onStick = (/** @type {unknown} */ _state, /** @type {Player} */ player) => render(player);
 
 /** 최근 제스처 몇 개를 위에서부터 보여준다. */
 host.onGesture = (/** @type {import('@digitus/protocol').Gesture} */ gesture, /** @type {Player} */ player) => {
