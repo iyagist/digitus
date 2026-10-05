@@ -6,8 +6,7 @@
  * 터치 영역(기본 window)을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
  * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
  *   끌지 않고 짧게 두 번 두드리면 더블탭 — `dtap: true` 를 실은 스틱 입력 하나를 보낸다. 한 번 두드림은 아무것도 아니라 기다릴 필요가 없다.
- * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다. 획을 긋고 떼지 않은 채 멈추면 그 획을
- *   바로 보내고 홀드가 된다(획 + 홀드 — 떼면 release).
+ * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
  * 폰 방향은 상관없다 — 지금 영역의 왼쪽·오른쪽 절반이다.
  * 버튼·링크 등 조작 요소 위에서 시작한 터치(와 `data-digitus-ignore` 안)는 입력으로 치지 않는다.
  */
@@ -25,7 +24,7 @@ const STROKE_STEP_PX = 12;
  * 짧은 가로 꼬리가 붙는다(`↓↑` 가 `↓↑→` 로). 실측에서 의도한 획은 34px 이상, 꼬리는 25px 이하였다.
  */
 const MIN_STROKE_PX = 30;
-/** 획 없이 이 시간 누르고 있으면 홀드. 획을 그은 뒤 이 시간 멈춰 있어도 — 그 획을 보내고 홀드. */
+/** 획 없이 이 시간 누르고 있으면 홀드. */
 const HOLD_MS = 180;
 /** 스틱 쪽 더블탭 — 끌지 않고(px) 짧게(ms) 뗀 것이 탭, 두 탭을 뗀 시각·자리가 이 안이면 더블탭. */
 const TAP_MOVE_PX = 5;
@@ -120,27 +119,12 @@ export function createTouch(target = window, { mouse = true } = {}) {
     touch.onGesture?.(gesture);
   }
 
-  /** 홀드가 된다 — 그때까지 그은 획이 있으면 그 획을 먼저 보낸다(획 + 홀드). */
-  function hold() {
-    const stroke = resolveStrokes();
-    strokes = [];
-    runs = [];
-    holding = true;
-    if (stroke) emit(stroke);
-    emit('hold');
-  }
-
   /** @param {PointerEvent} e */
   function moveGesture(e) {
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     if (Math.abs(dx) < STROKE_STEP_PX && Math.abs(dy) < STROKE_STEP_PX) return;
-    // 홀드 전의 획은 홀드 기다리기를 처음부터 다시 — 획을 긋고 멈추면 그때부터 HOLD_MS 뒤 획 + 홀드. 홀드 뒤의 획은
-    // 뗄 때 release 앞에 보낸다.
-    if (!holding) {
-      clearTimeout(holdTimer);
-      holdTimer = setTimeout(hold, HOLD_MS);
-    }
+    clearTimeout(holdTimer); // 홀드 전에 획이 생기면 홀드가 아니다. 홀드 뒤의 획은 뗄 때 release 앞에 보낸다.
     const horizontal = Math.abs(dx) > Math.abs(dy);
     const dir = horizontal ? (dx > 0 ? '→' : '←') : (dy > 0 ? '↓' : '↑');
     if (strokes[strokes.length - 1] !== dir) {
@@ -203,7 +187,10 @@ export function createTouch(target = window, { mouse = true } = {}) {
       strokes = [];
       runs = [];
       holding = false;
-      holdTimer = setTimeout(hold, HOLD_MS);
+      holdTimer = setTimeout(() => {
+        holding = true;
+        emit('hold');
+      }, HOLD_MS);
     }
     // 요소 영역이면 손가락이 밖으로 나가도 이어 받는다(window 는 화면 전체라 필요 없다).
     element?.setPointerCapture(e.pointerId);
