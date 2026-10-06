@@ -59,7 +59,7 @@ function connect({ appId, room }) {
   /** @type {ReturnType<typeof createTouch> | null} */
   let pad = null;
 
-  // 바뀔 때마다 바로 보낸다 — 모았다 보내면 dtap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
+  // 바뀔 때마다 바로 보낸다 — 모았다 보내면 tap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
   /** @param {StickState} state */
   function sendStick(state) {
     if (hostId) stickAction.send({ state }, { target: hostId });

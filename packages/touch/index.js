@@ -5,7 +5,7 @@
  * 플레이어는 폰을 보지 않고 조작한다 — 그래서 아무것도 그리지 않고, 정해진 자리도 없다.
  * 터치 영역(기본 window)을 반으로 나눠, 손가락이 **처음 닿은 쪽**이 그 손가락의 역할을 정한다.
  * - 왼쪽: 스틱. 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
- *   끌지 않고 짧게 두 번 두드리면 더블탭 — `dtap: true` 를 실은 스틱 입력 하나를 보낸다. 한 번 두드림은 아무것도 아니라 기다릴 필요가 없다.
+ *   끌지 않고 짧게 두드리면 `tap: true` 를 실은 스틱 입력 하나를 보낸다. 탭은 기다리지 않고 바로 보낸다.
  * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
  * 폰 방향은 상관없다 — 지금 영역의 왼쪽·오른쪽 절반이다.
  * 버튼·링크 등 조작 요소 위에서 시작한 터치(와 `data-digitus-ignore` 안)는 입력으로 치지 않는다.
@@ -26,11 +26,9 @@ const STROKE_STEP_PX = 12;
 const MIN_STROKE_PX = 30;
 /** 획 없이 이 시간 누르고 있으면 홀드. */
 const HOLD_MS = 180;
-/** 스틱 쪽 더블탭 — 끌지 않고(px) 짧게(ms) 뗀 것이 탭, 두 탭을 뗀 시각·자리가 이 안이면 더블탭. */
+/** 스틱 쪽 탭 — 끌지 않고(px) 짧게(ms) 뗀 것이 탭. */
 const TAP_MOVE_PX = 5;
 const TAP_MAX_MS = 200;
-const DOUBLE_TAP_MS = 300;
-const DOUBLE_TAP_PX = 60;
 
 /** 여기서 시작한 터치는 입력이 아니다 — 게임의 버튼 등을 누를 수 있게. */
 const IGNORE_SELECTOR = 'button, a, input, select, textarea, label, [data-digitus-ignore]';
@@ -56,8 +54,6 @@ export function createTouch(target = window, { mouse = true } = {}) {
   let stickDownAt = 0;
   /** 이번 터치에서 가장 멀리 끈 거리 — 끌었으면 탭이 아니다. */
   let stickMaxMove = 0;
-  /** 직전 스틱 탭 — 다음 탭이 가까우면 더블탭. @type {{ x: number, y: number, at: number } | null} */
-  let lastStickTap = null;
 
   /** @param {number} dx @param {number} dy */
   function setStick(dx, dy) {
@@ -83,19 +79,9 @@ export function createTouch(target = window, { mouse = true } = {}) {
     if (stickId === null) return;
     stickId = null;
     setStick(0, 0);
-    const now = performance.now();
-    if (cancelled || stickMaxMove > TAP_MOVE_PX || now - stickDownAt > TAP_MAX_MS) {
-      lastStickTap = null; // 끌었거나 쥐고 있었다 — 탭 연속이 끊긴다
-      return;
-    }
-    if (lastStickTap && now - lastStickTap.at <= DOUBLE_TAP_MS
-      && Math.abs(originX - lastStickTap.x) <= DOUBLE_TAP_PX && Math.abs(originY - lastStickTap.y) <= DOUBLE_TAP_PX) {
-      lastStickTap = null; // 세 번째 탭이 또 더블탭이 되지 않게
-      navigator.vibrate?.(10);
-      touch.onStick?.({ ...state, dtap: true }); // 이 한 번에만 싣는다
-      return;
-    }
-    lastStickTap = { x: originX, y: originY, at: now };
+    if (cancelled || stickMaxMove > TAP_MOVE_PX || performance.now() - stickDownAt > TAP_MAX_MS) return; // 끌었거나 쥐고 있었다
+    navigator.vibrate?.(10);
+    touch.onStick?.({ ...state, tap: true }); // 이 한 번에만 싣는다
   }
 
   // ── 오른쪽: 제스처 ──
@@ -234,9 +220,9 @@ export function createTouch(target = window, { mouse = true } = {}) {
   document.addEventListener('visibilitychange', onVisibility);
 
   const touch = {
-    /** 지금 스틱(이동량). 폴링용 — 한 번짜리인 dtap 은 담지 않는다. */
+    /** 지금 스틱(이동량). 폴링용 — 한 번짜리인 tap 은 담지 않는다. */
     state: /** @type {Readonly<StickState>} */ (state),
-    /** 스틱이 바뀔 때. 폰 호스트의 `onStick` 과 같은 값(`{ dx, dy, dtap? }`). */
+    /** 스틱이 바뀔 때. 폰 호스트의 `onStick` 과 같은 값(`{ dx, dy, tap? }`). */
     onStick: /** @type {((state: StickState) => void) | null} */ (null),
     /** 오른쪽 제스처. 폰 호스트의 `onGesture` 와 같은 문자열. */
     onGesture: /** @type {((gesture: Gesture) => void) | null} */ (null),

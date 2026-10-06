@@ -32,17 +32,17 @@ export const ACTION = Object.freeze({
  * 끝이 없다 — 끄는 만큼 커진다. 화면 좌표계(오른쪽 +x, 아래 +y), 폰을 세우든 눕히든 폰 화면 기준이다.
  * 바뀔 때마다 바로 보낸다. 데드존·최대치는 게임이 정한다.
  *
- * `dtap` 은 스틱 쪽 더블탭(끌지 않고 5px·짧게 200ms 두 번, 두 탭을 뗀 간격 300ms·거리 60px 안)이 **난 그 메시지에만**
- * `true` 로 실린다. 한 번 두드림은 아무것도 아니다. 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
+ * 스틱 쪽 탭(끌지 않고 5px·짧게 200ms 안에 뗌)은 **뗀 그 메시지에만** `tap: true` 로 실린다. 기다리지 않고 바로 온다.
+ * 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
  *
  * @typedef {object} StickState
  * @property {number} dx
  * @property {number} dy
- * @property {true} [dtap]
+ * @property {true} [tap]
  */
 
 /**
- * 오른쪽 화면 제스처. 문자열 하나다. (더블탭은 왼쪽 스틱에서 난다 — `StickState.dtap`)
+ * 오른쪽 화면 제스처. 문자열 하나다. (왼쪽 스틱의 탭은 `StickState.tap`)
  * - `'tap'`: 획 없이 짧게 톡. 바로 온다
  * - `'hold'` → `'release'`: 획 없이 180ms 누르고 있으면 `'hold'`, 떼면 `'release'`.
  *   홀드한 채 그은 획이 있으면 뗄 때 그 획을 먼저 보내고 `'release'` 가 뒤따른다(`'hold'`, `'→'`, `'release'`)

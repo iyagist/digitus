@@ -27,7 +27,7 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 
 | 화면 | 역할 |
 |---|---|
-| 왼쪽 절반 | **스틱.** 닿은 곳에서 지금 위치까지의 이동량(px) `{ dx, dy }`. 끝이 없다 — 끄는 만큼 커진다. 끌지 않고 짧게 두 번 두드리면 그 입력에 `dtap: true` |
+| 왼쪽 절반 | **스틱.** 닿은 곳에서 지금 위치까지의 이동량(px) `{ dx, dy }`. 끝이 없다 — 끄는 만큼 커진다. 끌지 않고 짧게 두드리면 그 입력에 `tap: true` |
 | 오른쪽 절반 | **제스처.** 문자열 하나: `tap` / `hold` → `release`(롱탭) / 획 `→←↑↓` 을 이은 것(`↓↑` 등, 뗄 때) |
 
 폰 방향은 상관없다(세로·가로 모두 그때 화면의 왼쪽·오른쪽 절반). 양쪽 손가락은 동시에 쓸 수 있다.
@@ -45,7 +45,7 @@ const host = createHost({
 showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
 
 // 스틱: 이벤트로 받거나
-host.onStick = (state, player) => { /* state = { dx, dy, dtap? } — dtap 이 true 면 더블탭 */ };
+host.onStick = (state, player) => { /* state = { dx, dy, tap? } — 탭이면 true */ };
 // 게임 루프에서 읽는다
 for (const player of host.players.values()) player.state.dx;
 
@@ -56,11 +56,11 @@ host.onGesture = (gesture, player) => {
 ```
 
 - 스틱 값은 폰 화면의 CSS px 정수, 화면 좌표계(오른쪽 +x, 아래 +y). 떼면 `0, 0`. 데드존·최대치는 게임이 정한다.
-- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state` 에는 `dx`, `dy` 만 있다(`dtap` 은 `onStick` 으로만).
-- 더블탭은 **왼쪽(스틱)** 에서 나고, 그 순간의 스틱 입력에 `dtap: true` 로 실려 온다(DarkSeouls 의 회피와 같은 자리).
-  왼쪽 한 번 톡은 아무 뜻이 없어 기다릴 필요가 없고, 그래서 오른쪽 `'tap'` 도 늦추지 않고 바로 보낸다.
+- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state` 에는 `dx`, `dy` 만 있다(`tap` 은 `onStick` 으로만).
+- 왼쪽(스틱) 탭은 뗀 순간의 스틱 입력에 `tap: true` 로 실려 온다. 더블탭은 없다 — 두 번째 탭을 기다리면 한 번 탭이 그만큼
+  늦어진다. 왼쪽·오른쪽 탭 모두 늦추지 않고 바로 보낸다.
 - 홀드한 채 그으면 뗄 때 `'hold'`, `'→'`, `'release'` 순으로 온다(모았다가 튕기기 등). 가드처럼 쓰는 게임은 홀드 중의 획을 무시하면 된다.
-- 판정 값(획 12px 단위·최소 30px, 홀드 180ms, 더블탭 5px·200ms·300ms·60px)은 DarkSeouls 패드에서 실측으로 맞춘 것을 가져왔다.
+- 판정 값(획 12px 단위·최소 30px, 홀드 180ms, 탭 5px·200ms)은 DarkSeouls 패드에서 실측으로 맞춘 것을 가져왔다.
 - 제스처가 무슨 동작인지(공격·회피 등)도 게임이 정한다.
 - 플레이어는 `index`(0부터)로 구분한다. 나간 자리는 다음에 들어온 사람이 채운다.
 
@@ -73,7 +73,7 @@ host.onGesture = (gesture, player) => {
 import { createTouch } from '@digitus/touch';
 
 const touch = createTouch(window);  // 터치를 받을 대상. 이 영역을 반으로 나눈다(기본 window). 요소를 넘겨도 된다
-touch.onStick = (state) => { /* { dx, dy, dtap? } — host.onStick 과 같은 값 */ };
+touch.onStick = (state) => { /* { dx, dy, tap? } — host.onStick 과 같은 값 */ };
 touch.onGesture = (gesture) => { /* 'tap' | 'hold' | 'release' | '→' … — host.onGesture 와 같은 문자열 */ };
 touch.state;      // 폴링용 { dx, dy }
 touch.destroy();
