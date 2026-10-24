@@ -9,6 +9,11 @@
  * - 오른쪽: 제스처. 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
  * 폰 방향은 상관없다 — 지금 영역의 왼쪽·오른쪽 절반이다.
  * 버튼·링크 등 조작 요소 위에서 시작한 터치(와 `data-digitus-ignore` 안)는 입력으로 치지 않는다.
+ *
+ * 뗀 신호(`pointerup`·`pointercancel`)는 가끔 오지 않는다 — 화면 가장자리의 시스템 제스처로 손가락이 넘어가거나, 마우스를
+ * 누른 채 창 밖에서 떼면. 그러면 손가락이 계속 닿은 것으로 남아 홀드가 풀리지 않고 그쪽 터치도 막힌다. 그래서 스스로 푼다:
+ * 같은 쪽에 새 손가락이 닿으면 옛 손가락은 끝난 것으로 보고(끊긴 것 — 홀드였으면 release), 창이 포커스를 잃거나 가려지면
+ * 전부 놓고, 마우스는 버튼을 누르지 않은 채 움직이면 뗀 것으로 본다.
  */
 
 /**
@@ -157,16 +162,16 @@ export function createTouch(target = window, { mouse = true } = {}) {
     if (e.pointerType === 'mouse' && (!mouse || e.button !== 0)) return;
     if (e.target instanceof Element && e.target.closest(IGNORE_SELECTOR)) return;
     const { left, width } = bounds();
-    // 한쪽에 손가락 하나만 — 같은 쪽에 두 번째 손가락이 닿으면 무시한다.
+    // 한쪽에 손가락 하나만 — 같은 쪽에 새 손가락이 닿으면 옛 손가락은 끝난 것으로 본다(뗀 신호를 놓쳐 남은 것일 수 있다).
     if (e.clientX < left + width / 2) {
-      if (stickId !== null) return;
+      releaseStick(true);
       stickId = e.pointerId;
       originX = e.clientX;
       originY = e.clientY;
       stickDownAt = performance.now();
       stickMaxMove = 0;
     } else {
-      if (gestureId !== null) return;
+      releaseGesture(true);
       gestureId = e.pointerId;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -184,6 +189,13 @@ export function createTouch(target = window, { mouse = true } = {}) {
 
   /** @param {PointerEvent} e */
   function move(e) {
+    // 마우스를 누른 채 창 밖에서 떼면 pointerup 이 오지 않는다 — 버튼을 누르지 않은 채 움직이면 뗀 것이다.
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      // 창 밖에서 무엇을 했는지 모르니 탭·획으로 치지 않는다(끊긴 것 — 홀드였으면 release).
+      if (e.pointerId === stickId) releaseStick(true);
+      else if (e.pointerId === gestureId) releaseGesture(true);
+      return;
+    }
     if (e.pointerId === stickId) moveStick(e);
     else if (e.pointerId === gestureId) moveGesture(e);
   }
@@ -199,7 +211,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
     releaseGesture(true);
   }
 
-  // 앱 전환·화면 끔에서는 pointerup 이 오지 않아 스틱이 기운 채, 홀드가 눌린 채 남는다.
+  // 앱 전환·화면 끔·창 전환에서는 pointerup 이 오지 않아 스틱이 기운 채, 홀드가 눌린 채 남는다.
   function onVisibility() {
     if (document.hidden) releaseAll();
   }
@@ -218,6 +230,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
   listen('pointerup', up);
   listen('pointercancel', up);
   document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('blur', releaseAll);
 
   const touch = {
     /** 지금 스틱(이동량). 폴링용 — 한 번짜리인 tap 은 담지 않는다. */
@@ -235,6 +248,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
       unlisten('pointerup', up);
       unlisten('pointercancel', up);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', releaseAll);
       touchActionHost.style.touchAction = prevTouchAction;
     },
   };
