@@ -14,8 +14,8 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 
 | 패키지 | 역할 |
 |---|---|
-| `packages/protocol` | 호스트·컨트롤러가 공유하는 약속: 메시지 형식, 입력 상태, 제스처, 주소 |
-| `packages/host` | 게임이 가져다 쓰는 라이브러리. 방을 열고 폰의 스틱·제스처를 받는다 |
+| `packages/protocol` | 호스트·컨트롤러가 공유하는 약속: 메시지 형식, 영역·모드, 입력 상태, 제스처, 주소 |
+| `packages/host` | 게임이 가져다 쓰는 라이브러리. 방을 열고 폰의 스틱·제스처를 받고, 영역별 모드를 보낸다 |
 | `packages/touch` | 터치 → 스틱·제스처 인식. 폰 컨트롤러가 쓰고, **게임도 화면을 직접 만지는 조작에 그대로 쓴다** |
 | `apps/controller` | 폰 컨트롤러 페이지. **모든 게임이 이 페이지 하나를 같이 쓴다** |
 | `apps/demo` | 호스트 사용 예. 입력을 화면에 그대로 보여준다 |
@@ -23,12 +23,18 @@ WebRTC 로 게임과 직접 연결된다. 앱 설치도, 우리 서버도 필요
 ## 컨트롤러
 
 플레이어는 폰을 보지 않고 게임 화면을 보며 조작한다. 그래서 컨트롤러는 **아무것도 그리지 않는다** —
-버튼 자리를 찾아 폰을 봐야 한다면 패드가 아니다. 화면을 반으로 나눠, 손가락이 처음 닿은 쪽이 역할을 정한다.
+버튼 자리를 찾아 폰을 봐야 한다면 패드가 아니다. 화면을 반으로 나눈 **영역**(`left`·`right`)마다 **모드**가 하나고,
+손가락이 처음 닿은 쪽 영역의 모드가 그 손가락의 역할을 정한다.
 
-| 화면 | 역할 |
+| 모드 | 보내는 것 |
 |---|---|
-| 왼쪽 절반 | **스틱.** 닿은 곳에서 지금 위치까지의 이동량(px) `{ dx, dy }`. 끝이 없다 — 끄는 만큼 커진다. 끌지 않고 짧게 두드리면 그 입력에 `tap: true` |
-| 오른쪽 절반 | **제스처.** 문자열 하나: `tap` / `hold` → `release`(롱탭) / 획 `→←↑↓` 을 이은 것(`↓↑` 등, 뗄 때) |
+| `stick` | 닿은 곳에서 지금 위치까지의 이동량(px) `{ dx, dy }`. 끝이 없다 — 끄는 만큼 커진다. 끌지 않고 짧게 두드리면 그 입력에 `tap: true` |
+| `gesture` | 문자열 하나: `tap` / `hold` → `release`(롱탭) / 획 `→←↑↓` 을 이은 것(`↓↑` 등, 뗄 때) |
+
+처음 배치는 **왼쪽 `stick`, 오른쪽 `gesture`**(`DEFAULT_LAYOUT`)다. 게임이 상황에 따라 바꾼다(`host.setLayout`) — 예를 들어
+오른쪽을 잠깐 `stick` 으로 바꿔 화면의 포인터를 끌게 하고, 정하면 다시 `gesture` 로. 바꾼 모드는 그 영역에 **다음에 닿는
+손가락**부터 따른다(닿아 있는 손가락은 뗄 때까지 옛 모드 — 홀드 중에 스틱이 되지 않게). 지금 무슨 모드인지는 폰이 아니라
+게임 화면이 보여 준다.
 
 폰 방향은 상관없다(세로·가로 모두 그때 화면의 왼쪽·오른쪽 절반). 양쪽 손가락은 동시에 쓸 수 있다.
 
@@ -44,21 +50,28 @@ const host = createHost({
 
 showQrCode(host.url);  // QR 생성은 게임 몫 (demo 는 qrcode 패키지 사용)
 
-// 스틱: 이벤트로 받거나
-host.onStick = (state, player) => { /* state = { dx, dy, tap? } — 탭이면 true */ };
+// 스틱: 이벤트로 받거나 — side 는 'left' | 'right'
+host.onStick = (state, player, side) => { /* state = { dx, dy, tap? } — 탭이면 true */ };
 // 게임 루프에서 읽는다
-for (const player of host.players.values()) player.state.dx;
+for (const player of host.players.values()) player.state.left.dx;
 
 // 제스처: 이벤트로만, 문자열 하나
-host.onGesture = (gesture, player) => {
+host.onGesture = (gesture, player, side) => {
   // 'tap' | 'hold' | 'release' | '→' | '↓↑' | '→←→' …
 };
+
+// 영역마다 모드 바꾸기 — 모두에게(앞으로 붙는 폰까지), 또는 한 플레이어에게
+host.setLayout({ left: 'stick', right: 'stick' });
+host.setLayout({ left: 'stick', right: 'gesture' }, player);
 ```
 
 - 스틱 값은 폰 화면의 CSS px 정수, 화면 좌표계(오른쪽 +x, 아래 +y). 떼면 `0, 0`. 데드존·최대치는 게임이 정한다.
-- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state` 에는 `dx`, `dy` 만 있다(`tap` 은 `onStick` 으로만).
-- 왼쪽(스틱) 탭은 뗀 순간의 스틱 입력에 `tap: true` 로 실려 온다. 더블탭은 없다 — 두 번째 탭을 기다리면 한 번 탭이 그만큼
-  늦어진다. 왼쪽·오른쪽 탭 모두 늦추지 않고 바로 보낸다.
+- 스틱은 바뀔 때마다 바로 보낸다. 폴링용 `player.state.left`·`right` 에는 `dx`, `dy` 만 있다(`tap` 은 `onStick` 으로만).
+  스틱 모드가 아닌 영역은 `0, 0`.
+- **포인터처럼** 쓰려면 손가락을 댈 때의 포인터 자리에 이동량을 더하고, 떼면(`0, 0`) 그 자리를 새 기준으로 삼는다 —
+  트랙패드처럼 여러 번 나눠 끌 수 있다. 배율(폰 px → 화면 px)은 게임이 정한다.
+- 스틱 탭은 뗀 순간의 스틱 입력에 `tap: true` 로 실려 온다. 더블탭은 없다 — 두 번째 탭을 기다리면 한 번 탭이 그만큼
+  늦어진다. 스틱·제스처 탭 모두 늦추지 않고 바로 보낸다.
 - 홀드한 채 그으면 뗄 때 `'hold'`, `'→'`, `'release'` 순으로 온다(모았다가 튕기기 등). 가드처럼 쓰는 게임은 홀드 중의 획을 무시하면 된다.
 - 판정 값(획 12px 단위·최소 30px, 홀드 180ms, 탭 5px·200ms)은 DarkSeouls 패드에서 실측으로 맞춘 것을 가져왔다.
 - 제스처가 무슨 동작인지(공격·회피 등)도 게임이 정한다.
@@ -73,9 +86,10 @@ host.onGesture = (gesture, player) => {
 import { createTouch } from '@digitus/touch';
 
 const touch = createTouch(window);  // 터치를 받을 대상. 이 영역을 반으로 나눈다(기본 window). 요소를 넘겨도 된다
-touch.onStick = (state) => { /* { dx, dy, tap? } — host.onStick 과 같은 값 */ };
-touch.onGesture = (gesture) => { /* 'tap' | 'hold' | 'release' | '→' … — host.onGesture 와 같은 문자열 */ };
-touch.state;      // 폴링용 { dx, dy }
+touch.onStick = (state, side) => { /* { dx, dy, tap? } — host.onStick 과 같은 값 */ };
+touch.onGesture = (gesture, side) => { /* 'tap' | 'hold' | 'release' | '→' … — host.onGesture 와 같은 문자열 */ };
+touch.state.left; // 폴링용 { dx, dy } — 영역마다
+touch.setLayout({ left: 'stick', right: 'stick' }); // host.setLayout 과 같다
 touch.destroy();
 ```
 

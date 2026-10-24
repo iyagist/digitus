@@ -1,8 +1,9 @@
 /**
  * 호스트(게임)와 컨트롤러(폰) 사이의 약속. 양쪽이 이 파일만 공유한다.
  *
- * 컨트롤러는 화면을 반으로 나눠 쓴다 — 왼쪽은 스틱(어디든 닿은 곳이 시작점), 오른쪽은 제스처.
- * 플레이어는 폰을 보지 않고 조작하므로 그리는 것도, 게임마다 다른 배치도 없다.
+ * 컨트롤러는 화면을 반으로 나눠 쓴다 — 영역(`left`·`right`)마다 모드가 하나다: 스틱(어디든 닿은 곳이 시작점) 또는
+ * 제스처. 처음엔 왼쪽 스틱·오른쪽 제스처(`DEFAULT_LAYOUT`)이고, 게임이 상황에 따라 바꿔 보낸다(`ACTION.LAYOUT`).
+ * 플레이어는 폰을 보지 않고 조작하므로 그리는 것은 없다 — 지금 어느 모드인지는 게임 화면이 보여 준다.
  * 게임 개념(공격·회피)은 여기 두지 않는다 — 스틱 값과 제스처만 오가고, 그 의미는 게임이 정한다.
  */
 
@@ -21,19 +22,39 @@ export const ACTION = Object.freeze({
    * 컨트롤러 → 호스트: 답례. 버전이 맞으면 호스트가 이때 플레이어로 받는다.
    */
   HELLO: 'hello',
-  /** 컨트롤러 → 호스트: 스틱 스냅샷 */
+  /** 컨트롤러 → 호스트: 스틱 스냅샷(어느 영역의 것인지 함께) */
   STICK: 'stick',
-  /** 컨트롤러 → 호스트: 오른쪽 화면 제스처 */
+  /** 컨트롤러 → 호스트: 제스처(어느 영역의 것인지 함께) */
   GESTURE: 'gesture',
+  /** 호스트 → 컨트롤러: 영역별 모드. 그 영역에 **다음에 닿는 손가락**부터 따른다 — 닿아 있는 손가락은 뗄 때까지 옛 모드다 */
+  LAYOUT: 'layout',
 });
 
 /**
- * 스틱 입력. 손가락이 **처음 닿은 곳에서 지금 위치까지** 이동량(CSS px, 정수). 떼면 0, 0.
+ * 화면의 영역 — 반으로 나눈 왼쪽·오른쪽. 손가락이 **처음 닿은 쪽**이 그 손가락의 영역이다.
+ * @typedef {'left' | 'right'} Side
+ *
+ * 영역의 모드 — `stick`(닿은 곳에서의 이동량과 탭, `StickState`) 또는 `gesture`(탭·홀드·획 문자열, `Gesture`).
+ * @typedef {'stick' | 'gesture'} Mode
+ *
+ * 영역마다의 모드.
+ * @typedef {{ left: Mode, right: Mode }} Layout
+ */
+
+/** 처음 배치 — 왼쪽 스틱(움직이기), 오른쪽 제스처(동작). @type {Readonly<Layout>} */
+export const DEFAULT_LAYOUT = Object.freeze({ left: 'stick', right: 'gesture' });
+
+/** 영역 이름들. @type {readonly Side[]} */
+export const SIDES = Object.freeze(['left', 'right']);
+
+/**
+ * 스틱 입력(모드 `stick` 인 영역). 손가락이 **처음 닿은 곳에서 지금 위치까지** 이동량(CSS px, 정수). 떼면 0, 0.
  * 끝이 없다 — 끄는 만큼 커진다. 화면 좌표계(오른쪽 +x, 아래 +y), 폰을 세우든 눕히든 폰 화면 기준이다.
  * 바뀔 때마다 바로 보낸다. 데드존·최대치는 게임이 정한다.
  *
  * 스틱 쪽 탭(끌지 않고 5px·짧게 200ms 안에 뗌)은 **뗀 그 메시지에만** `tap: true` 로 실린다. 기다리지 않고 바로 온다.
- * 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다.
+ * 두드리는 동안의 작은 dx·dy 는 게임 데드존이 거른다. 손가락을 다시 댈 때마다 0 에서 시작하니, 포인터처럼 쓰는 게임은
+ * 닿을 때의 자리에 이동량을 더하고 떼면(0, 0) 그 자리를 새 기준으로 삼는다.
  *
  * @typedef {object} StickState
  * @property {number} dx
@@ -42,7 +63,7 @@ export const ACTION = Object.freeze({
  */
 
 /**
- * 오른쪽 화면 제스처. 문자열 하나다. (왼쪽 스틱의 탭은 `StickState.tap`)
+ * 제스처(모드 `gesture` 인 영역). 문자열 하나다. (스틱 영역의 탭은 `StickState.tap`)
  * - `'tap'`: 획 없이 짧게 톡. 바로 온다
  * - `'hold'` → `'release'`: 획 없이 180ms 누르고 있으면 `'hold'`, 떼면 `'release'`.
  *   홀드한 채 그은 획이 있으면 뗄 때 그 획을 먼저 보내고 `'release'` 가 뒤따른다(`'hold'`, `'→'`, `'release'`)
@@ -56,8 +77,9 @@ export const ACTION = Object.freeze({
 
 /**
  * @typedef {{ v: number }} HelloMessage
- * @typedef {{ state: StickState }} StickMessage
- * @typedef {{ gesture: Gesture }} GestureMessage
+ * @typedef {{ side: Side, state: StickState }} StickMessage
+ * @typedef {{ side: Side, gesture: Gesture }} GestureMessage
+ * @typedef {{ layout: Layout }} LayoutMessage
  */
 
 /** 손을 뗀 상태. @returns {StickState} */

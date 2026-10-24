@@ -1,5 +1,5 @@
 /**
- * 폰 컨트롤러 페이지. 주소 해시로 게임과 방을 알아내 접속하고, 게임이 보낸 배치를 그린다.
+ * 폰 컨트롤러 페이지. 주소 해시로 게임과 방을 알아내 접속하고, 게임이 보낸 배치(영역별 모드)대로 터치를 읽어 보낸다.
  * 모든 게임이 이 페이지 하나를 같이 쓴다.
  */
 import { joinRoom } from 'trystero';
@@ -12,6 +12,8 @@ import './style.css';
  * @typedef {import('@digitus/protocol').HelloMessage} HelloMessage
  * @typedef {import('@digitus/protocol').StickMessage} StickMessage
  * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
+ * @typedef {import('@digitus/protocol').LayoutMessage} LayoutMessage
+ * @typedef {import('@digitus/protocol').Side} Side
  */
 
 const statusEl = /** @type {HTMLElement} */ (document.getElementById('status'));
@@ -53,6 +55,8 @@ function connect({ appId, room }) {
   const stickAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.STICK));
   /** @type {import('trystero').MessageAction<GestureMessage>} */
   const gestureAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.GESTURE));
+  /** @type {import('trystero').MessageAction<LayoutMessage>} */
+  const layoutAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.LAYOUT));
 
   /** @type {string | null} */
   let hostId = null;
@@ -60,10 +64,15 @@ function connect({ appId, room }) {
   let pad = null;
 
   // 바뀔 때마다 바로 보낸다 — 모았다 보내면 tap 처럼 한 번만 실리는 값이 다음 값에 덮인다.
-  /** @param {StickState} state */
-  function sendStick(state) {
-    if (hostId) stickAction.send({ state }, { target: hostId });
+  /** @param {StickState} state @param {Side} side */
+  function sendStick(state, side) {
+    if (hostId) stickAction.send({ side, state }, { target: hostId });
   }
+
+  // 게임이 영역별 모드를 바꾼다 — 그 영역에 다음에 닿는 손가락부터 따른다.
+  layoutAction.onMessage = ({ layout }, { peerId }) => {
+    if (peerId === hostId) pad?.setLayout(layout);
+  };
 
   helloAction.onMessage = (message, { peerId }) => {
     if (message.v !== PROTOCOL_VERSION) {
@@ -76,8 +85,8 @@ function connect({ appId, room }) {
     pad?.destroy();
     pad = createTouch(); // 폰 화면 전체
     pad.onStick = sendStick;
-    pad.onGesture = (gesture) => {
-      if (hostId) gestureAction.send({ gesture }, { target: hostId });
+    pad.onGesture = (gesture, side) => {
+      if (hostId) gestureAction.send({ side, gesture }, { target: hostId });
     };
     setStatus('');
     document.body.classList.add('connected');

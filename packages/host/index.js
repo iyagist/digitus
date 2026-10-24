@@ -1,14 +1,17 @@
 /**
  * 게임(PC 브라우저) 쪽 라이브러리. 방을 열고, 폰 컨트롤러의 스틱과 제스처를 받는다.
  *
+ * 폰 화면은 왼쪽·오른쪽 영역(`side`)으로 나뉘고 영역마다 모드(스틱·제스처)가 있다. 처음엔 왼쪽 스틱·오른쪽 제스처이고,
+ * 게임이 `host.setLayout` 으로 바꾼다(그 영역에 다음에 닿는 손가락부터).
  * 스틱(`{ dx, dy }`, 닿은 곳에서의 이동량 px)은 두 방식으로 쓸 수 있다.
- * - 이벤트: `host.onStick = (state, player) => …`
- * - 폴링: 게임 루프에서 `host.players` 의 `state` 를 읽는다(키보드 상태를 읽듯).
- * 제스처는 이벤트로만 온다: `host.onGesture = (gesture, player) => …`
+ * - 이벤트: `host.onStick = (state, player, side) => …`
+ * - 폴링: 게임 루프에서 `host.players` 의 `state[side]` 를 읽는다(키보드 상태를 읽듯).
+ * 제스처는 이벤트로만 온다: `host.onGesture = (gesture, player, side) => …`
  */
 import { joinRoom } from 'trystero';
 import {
   ACTION,
+  DEFAULT_LAYOUT,
   PROTOCOL_VERSION,
   buildControllerUrl,
   createRoomId,
@@ -21,11 +24,16 @@ import {
  * @typedef {import('@digitus/protocol').HelloMessage} HelloMessage
  * @typedef {import('@digitus/protocol').StickMessage} StickMessage
  * @typedef {import('@digitus/protocol').GestureMessage} GestureMessage
+ * @typedef {import('@digitus/protocol').LayoutMessage} LayoutMessage
+ * @typedef {import('@digitus/protocol').Side} Side
+ * @typedef {import('@digitus/protocol').Layout} Layout
  *
  * @typedef {object} Player
  * @property {string} id Trystero 피어 ID
  * @property {number} index 0부터. 나간 자리는 다음에 들어온 사람이 채운다
- * @property {StickState} state 최신 스틱(`dx`, `dy`). 한 번짜리인 `tap` 은 담지 않는다 — `onStick` 으로만 온다
+ * @property {{ [side in Side]: StickState }} state 영역마다 최신 스틱(`dx`, `dy`). 한 번짜리인 `tap` 은 담지 않는다 — `onStick`
+ *   으로만 온다. 스틱 모드가 아닌 영역은 0, 0
+ * @property {Layout} layout 이 폰에 보낸 배치
  *
  * @typedef {object} HostOptions
  * @property {string} appId 게임마다 고유한 값. 컨트롤러와 같아야 한다
@@ -44,9 +52,19 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
   const stickAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.STICK));
   /** @type {import('trystero').MessageAction<GestureMessage>} */
   const gestureAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.GESTURE));
+  /** @type {import('trystero').MessageAction<LayoutMessage>} */
+  const layoutAction = /** @type {any} */ (trysteroRoom.makeAction(ACTION.LAYOUT));
 
   /** @type {Map<string, Player>} */
   const players = new Map();
+  /** 새로 붙는 폰에 줄 배치 — 모두에게 바꾸면(`setLayout` 에 플레이어 없이) 이것도 바뀐다. @type {Layout} */
+  let layout = { ...DEFAULT_LAYOUT };
+
+  /** @param {Player} player @param {Layout} next */
+  function sendLayout(player, next) {
+    player.layout = { left: next.left, right: next.right };
+    layoutAction.send({ layout: player.layout }, { target: player.id });
+  }
 
   function nextIndex() {
     const used = new Set(Array.from(players.values(), (p) => p.index));
@@ -63,8 +81,23 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
     players,
     onJoin: /** @type {((player: Player) => void) | null} */ (null),
     onLeave: /** @type {((player: Player) => void) | null} */ (null),
-    onStick: /** @type {((state: StickState, player: Player) => void) | null} */ (null),
-    onGesture: /** @type {((gesture: Gesture, player: Player) => void) | null} */ (null),
+    onStick: /** @type {((state: StickState, player: Player, side: Side) => void) | null} */ (null),
+    onGesture: /** @type {((gesture: Gesture, player: Player, side: Side) => void) | null} */ (null),
+
+    /**
+     * 영역마다 모드를 바꾼다 — 그 폰의 그 영역에 다음에 닿는 손가락부터. 플레이어를 주지 않으면 모두에게, 그리고
+     * 앞으로 붙는 폰에게도.
+     * @param {Layout} next
+     * @param {Player} [player]
+     */
+    setLayout(next, player) {
+      if (player) {
+        sendLayout(player, next);
+        return;
+      }
+      layout = { left: next.left, right: next.right };
+      for (const p of players.values()) sendLayout(p, layout);
+    },
 
     /** 왕복 지연(ms). @param {string} playerId */
     ping(playerId) {
@@ -93,8 +126,13 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
       console.warn(`[digitus] 컨트롤러 버전이 달라 받지 않음 (컨트롤러 ${message.v}, 게임 ${PROTOCOL_VERSION})`);
       return;
     }
-    const player = { id: peerId, index: nextIndex(), state: neutralStick() };
+    /** @type {Player} */
+    const player = {
+      id: peerId, index: nextIndex(), state: { left: neutralStick(), right: neutralStick() }, layout,
+    };
     players.set(peerId, player);
+    // 폰은 처음 배치(`DEFAULT_LAYOUT`)로 시작하니, 게임이 이미 바꿔 두었으면 지금 것을 알려 준다.
+    sendLayout(player, layout);
     host.onJoin?.(player);
   };
 
@@ -109,14 +147,14 @@ export function createHost({ appId, controllerUrl, room = createRoomId(), rtcCon
     const player = players.get(peerId);
     if (!player) return;
     // 게임 루프가 폴링할 때 tap 이 남아 매 프레임 잡히지 않게, 보관하는 상태엔 이동량만 둔다.
-    player.state = { dx: message.state.dx, dy: message.state.dy };
-    host.onStick?.(message.state, player);
+    player.state[message.side] = { dx: message.state.dx, dy: message.state.dy };
+    host.onStick?.(message.state, player, message.side);
   };
 
   gestureAction.onMessage = (message, { peerId }) => {
     const player = players.get(peerId);
     if (!player) return;
-    host.onGesture?.(message.gesture, player);
+    host.onGesture?.(message.gesture, player, message.side);
   };
 
   return host;
