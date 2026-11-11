@@ -7,7 +7,8 @@
  * 모드가 하나다(`layout` — 처음엔 왼쪽 스틱·오른쪽 제스처).
  * - 스틱: 닿은 곳에서 지금 위치까지의 이동량(px)을 그대로 보낸다. 해석(데드존·최대치)은 게임 몫.
  *   끌지 않고 짧게 두드리면 `tap: true` 를 실은 스틱 입력 하나를 보낸다. 탭은 기다리지 않고 바로 보낸다.
- * - 제스처: 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다.
+ * - 제스처: 탭·홀드, 그리고 획(→←↑↓)을 이은 문자열. 탭은 바로 보낸다. 홀드한 뒤 끌면 홀드가 시작된 자리에서의 이동량을
+ *   그 영역의 스틱으로도 보낸다(조준처럼 누른 채 끄는 동작 — 떼면 `release` 뒤에 0, 0).
  * 모드를 바꾸면(`setLayout`) 그 영역에 **다음에 닿는 손가락**부터 따른다 — 닿아 있는 손가락은 뗄 때까지 옛 모드다
  * (홀드 중에 스틱이 되거나 끌던 스틱이 획이 되지 않게).
  * 폰 방향은 상관없다 — 지금 영역의 왼쪽·오른쪽 절반이다.
@@ -118,6 +119,17 @@ export function createTouch(target = window, { mouse = true } = {}) {
     /** @type {number[]} */
     const runs = [];
     let holding = false;
+    /** 지금 손가락 자리, 홀드가 시작된 자리(홀드 뒤 끌기의 기준). */
+    let nowX = e.clientX;
+    let nowY = e.clientY;
+    let holdX = e.clientX;
+    let holdY = e.clientY;
+
+    /** 홀드 뒤 끌기 — 홀드가 시작된 자리에서 지금까지의 이동량을 그 영역의 스틱으로 보낸다. @param {number} dx @param {number} dy */
+    function drag(dx, dy) {
+      state[side] = { dx, dy };
+      touch.onStick?.(state[side], side);
+    }
 
     /** @param {Gesture} g */
     function emit(g) {
@@ -127,6 +139,8 @@ export function createTouch(target = window, { mouse = true } = {}) {
 
     const holdTimer = setTimeout(() => {
       holding = true;
+      holdX = nowX;
+      holdY = nowY;
       emit('hold');
     }, HOLD_MS);
 
@@ -144,6 +158,13 @@ export function createTouch(target = window, { mouse = true } = {}) {
     return {
       id: e.pointerId,
       move(ev) {
+        nowX = ev.clientX;
+        nowY = ev.clientY;
+        if (holding) {
+          const hx = Math.round(nowX - holdX);
+          const hy = Math.round(nowY - holdY);
+          if (hx !== state[side].dx || hy !== state[side].dy) drag(hx, hy);
+        }
         const dx = ev.clientX - lastX;
         const dy = ev.clientY - lastY;
         if (Math.abs(dx) < STROKE_STEP_PX && Math.abs(dy) < STROKE_STEP_PX) return;
@@ -165,6 +186,7 @@ export function createTouch(target = window, { mouse = true } = {}) {
           // 홀드한 채 그은 획(모았다가 튕기기 등)을 먼저, 그다음 release. 가드로 쓰는 게임은 이 획을 무시하면 된다.
           if (stroke) emit(stroke);
           emit('release');
+          if (state[side].dx !== 0 || state[side].dy !== 0) drag(0, 0); // 뗀 뒤에 — 게임이 뗀 순간의 자리를 쓰게
           return;
         }
         if (cancelled) return;
